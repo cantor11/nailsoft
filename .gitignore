@@ -1,0 +1,74 @@
+# --- System Files ---
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.bak
+*.tmp
+
+# --- Dependencies & Build ---
+node_modules/
+jspm_packages/
+build/
+dist/
+out/
+coverage/
+.npm
+.eslintcache
+
+# --- Python & Data Science ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ipynb_checkpoints
+.virtualenvs/
+.venv/
+venv/
+ENV/
+env/
+# Archivos de datos pesados (común en Data Engineering)
+*.csv
+*.parquet
+*.jsonl
+*.pickle
+*.h5
+*.npy
+
+# --- Databases ---
+*.sqlite3
+*.db
+*.sql
+# Si usas PostgreSQL local, los dumps no deberían ir al repo
+*.dump
+
+# --- IDEs & Editors ---
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# --- Environment & Secrets ---
+.env*
+!.env.example
+*.pem
+*.key
+*.cert
+.serverless/
+
+# --- Local AI & LLMs ---
+# Evita subir modelos pesados de Ollama o archivos de pesos
+models/
+*.bin
+*.gguf
+*.onnx
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

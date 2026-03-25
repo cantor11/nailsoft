@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-pink-light: #fff5f7;
+  --color-brand-pink: #fce4ec;
+  --color-brand-pink-medium: #f8bbd0;
+  --color-brand-pink-dark: #f06292;
+  --color-brand-accent: #ec407a;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  @apply bg-brand-pink-light text-slate-800 antialiased;
+}
+
+.card-shadow {
+  box-shadow: 0 4px 20px -2px rgba(240, 98, 146, 0.1);
+}
+
+/* Bloquear selección de texto en toda la app (feel nativo) */
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Permitir selección en campos editables */
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}

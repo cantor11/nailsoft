@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Nail Studio</string>
+    <string name="title_activity_main">Nail Studio</string>
+    <string name="package_name">com.nailstudio.app</string>
+    <string name="custom_url_scheme">com.nailstudio.app</string>
+</resources>
