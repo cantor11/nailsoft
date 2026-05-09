@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
-import { User, Briefcase, Scissors, Plus, Trash2, Save, X, Edit2, Download, Upload } from 'lucide-react';
+import { User, Briefcase, Scissors, Plus, Trash2, Save, X, Edit2, Download, Upload, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -13,13 +14,16 @@ import { Share } from '@capacitor/share';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 
-export const Perfil: React.FC = () => {
+interface PerfilProps {
+  onLogout: () => void;
+}
+
+export const Perfil: React.FC<PerfilProps> = ({ onLogout }) => {
   const { 
-    businesses, activeBusinessId, addBusiness, updateBusiness, deleteBusiness, setActiveBusiness,
-    workers, addWorker, updateWorker, deleteWorker,
-    services, addService, updateService, deleteService,
-    materials,
-    exportData, importData
+    businesses, activeBusinessId, addBusiness, updateBusiness, 
+    deleteBusiness, setActiveBusiness, workers, addWorker, 
+    updateWorker, deleteWorker, services, addService, 
+    updateService, deleteService, materials, exportData, importData
   } = useStore();
   
   const activeBusiness = businesses.find(b => b.id === activeBusinessId) || businesses[0];
@@ -211,20 +215,39 @@ export const Perfil: React.FC = () => {
     <div className="p-6 h-full flex flex-col max-w-md mx-auto pb-24 overflow-y-auto no-scrollbar bg-brand-pink-light">
       <header className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-brand-accent flex items-center gap-2">Configuración</h1>
-          <p className="text-xs text-slate-400">Gestiona negocio, equipo y servicios</p>
+          <h1 className="text-2xl font-bold text-brand-accent flex items-center gap-2">
+            Configuración
+          </h1>
+          <p className="text-xs text-slate-400">
+            Gestiona negocio, equipo y servicios
+          </p>
         </div>
+
         <div className="flex flex-col items-end gap-2">
-          <select 
-            value={activeBusinessId}
-            onChange={(e) => setActiveBusiness(e.target.value)}
-            className="bg-white border border-brand-pink rounded-xl px-3 py-1.5 text-[10px] font-bold text-brand-accent shadow-sm outline-none"
-          >
-            {businesses.map(b => (
-              <option key={b.id} value={b.id}>{b.nombre}</option>
-            ))}
-          </select>
-          <button 
+          <div className="flex items-center gap-2">
+            <select
+              value={activeBusinessId}
+              onChange={(e) => setActiveBusiness(e.target.value)}
+              className="bg-white border border-brand-pink rounded-xl px-3 py-1.5 text-[10px] font-bold text-brand-accent shadow-sm outline-none"
+            >
+              {businesses.map(b => (
+                <option key={b.id} value={b.id}>
+                  {b.nombre}
+                </option>
+              ))}
+            </select>
+
+            {/* Botón de cerrar sesión */}
+            <button
+              onClick={onLogout}
+              className="p-2 bg-red-50 text-red-400 rounded-xl border border-red-100 active:scale-95 transition-transform"
+              title="Cerrar sesión"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button
             onClick={() => setIsAddingBusiness(true)}
             className="text-[8px] font-bold text-brand-accent underline uppercase tracking-wider"
           >
