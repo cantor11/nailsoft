@@ -12,6 +12,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { useStore } from './store/useStore';
 import { useAuth } from './hooks/useAuth';
 import { signOut } from './firebase/auth';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { App as CapacitorApp } from '@capacitor/app';
 import { LogOut, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,17 +32,11 @@ export default function App() {
     showLogoutConfirmRef.current = showLogoutConfirm;
   }, [showLogoutConfirm]);
 
-  // ─────────────────────────────────────────────
-  // Reacciona a cambios en el estado de autenticación
-  // ─────────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
 
     if (user) {
-      // Primero seteamos el userId en el store ANTES de cualquier cosa
-      // Esto garantiza que todas las acciones posteriores tengan userId disponible
       setUserId(user.uid);
-
       setIsInitializing(true);
       initializeUserData(user.uid)
         .finally(() => {
@@ -54,9 +49,6 @@ export default function App() {
     }
   }, [user, loading]);
 
-  // ─────────────────────────────────────────────
-  // Botón de retroceso en Android
-  // ─────────────────────────────────────────────
   useEffect(() => {
     let sub: any;
     CapacitorApp.addListener('backButton', () => {
@@ -130,13 +122,11 @@ export default function App() {
       case 'clientes': return <Clientes />;
       case 'materiales': return <Materiales />;
       case 'perfil':
-        // Le pasamos la función de logout al módulo de perfil
         return <Perfil onLogout={() => setShowLogoutConfirm(true)} />;
       default: return <Agenda />;
     }
   };
 
-  // Firebase verificando sesión
   if (loading) {
     return (
       <div className="fixed inset-0 bg-brand-pink-light flex items-center justify-center">
@@ -152,12 +142,6 @@ export default function App() {
     );
   }
 
-  // Sin sesión
-  if (!user) {
-    return <AuthScreen onAuthenticated={() => {}} />;
-  }
-
-  // Cargando datos de Firestore
   if (isInitializing) {
     return (
       <div className="fixed inset-0 bg-brand-pink-light flex items-center justify-center">
@@ -173,18 +157,30 @@ export default function App() {
     );
   }
 
-  // Pantalla de bienvenida
-  if (showWelcome) {
-    return <Login onLogin={() => setShowWelcome(false)} />;
-  }
-
-  // App principal
   return (
     <>
-      <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-        {renderContent()}
-        <UndoToast />
-      </Layout>
+      <Routes>
+        <Route 
+          path="/login" 
+          element={user ? <Navigate to="/" replace /> : <AuthScreen onAuthenticated={() => {}} />} 
+        />
+        <Route 
+          path="/" 
+          element={
+            !user ? (
+              <Navigate to="/login" replace />
+            ) : showWelcome ? (
+              <Login onLogin={() => setShowWelcome(false)} />
+            ) : (
+              <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+                {renderContent()}
+                <UndoToast />
+              </Layout>
+            )
+          } 
+        />
+        <Route path="*" element={<Navigate to={user ? "/" : "/login"} replace />} />
+      </Routes>
 
       <AnimatePresence>
         {showLogoutConfirm && (
