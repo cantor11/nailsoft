@@ -41,8 +41,9 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
         <table className="w-full">
           <thead>
             <tr className="border-b border-brand-pink text-[10px] font-black text-slate-400 uppercase text-left">
-              <th className="py-2">Servicio</th>
-              <th className="py-2 text-right">Precio</th>
+              <th className="py-2 w-1/2">Servicio</th>
+              <th className="py-2 text-right">Unitario</th>
+              <th className="py-2 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -54,16 +55,17 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
               return (
                 <tr key={id} className="border-b border-brand-pink/30">
                   <td className="py-4 text-sm font-bold text-slate-700">
-                    {appointment.serviciosNombres?.[id] || service?.nombre || 'Servicio'}
-                    {mult > 1 && <span className="text-brand-accent ml-1">(x{mult})</span>}
+                    <span className="block">{appointment.serviciosNombres?.[id] || service?.nombre || 'Servicio'}</span>
+                    {mult >= 1 && <span className="text-[10px] font-black text-brand-accent uppercase tracking-wider">Cantidad: x{mult}</span>}
                   </td>
-                  <td className="py-4 text-sm font-bold text-slate-700 text-right">${rowTotal.toLocaleString()}</td>
+                  <td className="py-4 text-sm font-bold text-slate-500 text-right">${price.toLocaleString()}</td>
+                  <td className="py-4 text-sm font-black text-slate-800 text-right">${rowTotal.toLocaleString()}</td>
                 </tr>
               );
             })}
             {appointment.descuentoValor !== undefined && appointment.descuentoValor > 0 && (
               <tr className="border-b border-brand-pink/30 text-emerald-600">
-                <td className="py-4 text-sm font-bold italic">Descuento ({appointment.descuentoTipo === 'percent' ? `${appointment.descuentoValor}%` : `$${appointment.descuentoValor}`})</td>
+                <td colSpan={2} className="py-4 text-sm font-bold italic">Descuento ({appointment.descuentoTipo === 'percent' ? `${appointment.descuentoValor}%` : `$${appointment.descuentoValor}`})</td>
                 <td className="py-4 text-sm font-bold text-right">
                   {(() => {
                     const currentTotalServices = appointment.serviciosIds.reduce((sum, id) => {
@@ -82,7 +84,7 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
             )}
             {appointment.tipo === 'Domicilio' && appointment.tarifaDomicilio > 0 && (
               <tr className="border-b border-brand-pink/30">
-                <td className="py-4 text-sm font-bold text-slate-700 italic">Tarifa Domicilio</td>
+                <td colSpan={2} className="py-4 text-sm font-bold text-slate-700 italic">Tarifa Domicilio</td>
                 <td className="py-4 text-sm font-bold text-slate-700 text-right">${appointment.tarifaDomicilio?.toLocaleString()}</td>
               </tr>
             )}
