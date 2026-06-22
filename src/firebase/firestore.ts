@@ -9,7 +9,7 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
-import { db } from './config';
+import { db, isDevWithoutFirebase } from './config';
 
 // Ruta base: users/{userId}/{colección}
 const getUserCollection = (userId: string, collectionName: string) => {
@@ -21,6 +21,9 @@ export const getCollection = async <T>(
   userId: string,
   collectionName: string
 ): Promise<T[]> => {
+  if (isDevWithoutFirebase) {
+    return []; // En modo mock, no hay datos en Firestore → el store usará valores por defecto
+  }
   const colRef = getUserCollection(userId, collectionName);
   const snapshot = await getDocs(colRef);
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as T));
@@ -33,6 +36,9 @@ export const setDocument = async (
   id: string,
   data: object
 ): Promise<void> => {
+  if (isDevWithoutFirebase) {
+    return; // No-op en modo desarrollo sin Firebase
+  }
   const docRef = doc(db, 'users', userId, collectionName, id);
   // Eliminamos el campo id del objeto antes de guardarlo
   const { id: _, ...dataWithoutId } = data as any;
@@ -46,6 +52,9 @@ export const updateDocument = async (
   id: string,
   data: object
 ): Promise<void> => {
+  if (isDevWithoutFirebase) {
+    return; // No-op en modo desarrollo sin Firebase
+  }
   const docRef = doc(db, 'users', userId, collectionName, id);
   await updateDoc(docRef, data as any);
 };
@@ -56,6 +65,9 @@ export const deleteDocument = async (
   collectionName: string,
   id: string
 ): Promise<void> => {
+  if (isDevWithoutFirebase) {
+    return; // No-op en modo desarrollo sin Firebase
+  }
   const docRef = doc(db, 'users', userId, collectionName, id);
   await deleteDoc(docRef);
 };
@@ -66,6 +78,9 @@ export const batchSet = async (
   collectionName: string,
   items: Array<{ id: string; [key: string]: any }>
 ): Promise<void> => {
+  if (isDevWithoutFirebase) {
+    return; // No-op en modo desarrollo sin Firebase
+  }
   if (items.length === 0) return;
 
   // Firestore permite máximo 500 operaciones por batch
