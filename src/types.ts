@@ -99,6 +99,7 @@ export interface Appointment {
   precioFinal: number; // Precio editado por el usuario
   propina?: number;
   serviciosPrecios?: Record<string, number>; // Precios individuales editados
+  serviciosMultiplicadores?: Record<string, number>; // Multiplicadores individuales por servicio
   descuentoValor?: number;
   descuentoTipo?: 'percent' | 'fixed';
   notas?: string;

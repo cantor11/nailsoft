@@ -47,6 +47,7 @@ export const Agenda: React.FC = () => {
     direccion: '',
     tarifaDomicilio: 0,
     serviciosPrecios: {} as Record<string, number>,
+    serviciosMultiplicadores: {} as Record<string, number>,
     descuentoValor: 0,
     descuentoTipo: 'fixed' as 'fixed' | 'percent',
     notas: ''
@@ -179,8 +180,14 @@ export const Agenda: React.FC = () => {
 
   const selectedServices = newApp.serviciosIds.map(id => filteredServices.find(s => s.id === id)).filter(Boolean) as Service[];
   
-  const estimatedValue = selectedServices.reduce((sum, s) => sum + s.precio, 0);
-  const currentTotalServices = selectedServices.reduce((sum, s) => sum + (newApp.serviciosPrecios[s.id] ?? s.precio), 0);
+  const estimatedValue = selectedServices.reduce((sum, s) => {
+    const m = newApp.serviciosMultiplicadores?.[s.id] ?? 1;
+    return sum + s.precio * m;
+  }, 0);
+  const currentTotalServices = selectedServices.reduce((sum, s) => {
+    const m = newApp.serviciosMultiplicadores?.[s.id] ?? 1;
+    return sum + (newApp.serviciosPrecios[s.id] ?? s.precio) * m;
+  }, 0);
   
   const discountAmount = newApp.descuentoTipo === 'percent' 
     ? (currentTotalServices * (newApp.descuentoValor / 100)) 
@@ -188,6 +195,29 @@ export const Agenda: React.FC = () => {
     
   const finalTotal = Math.max(0, currentTotalServices - discountAmount) + (newApp.tipo === 'Domicilio' ? newApp.tarifaDomicilio : 0);
   const difference = finalTotal - (estimatedValue + (newApp.tipo === 'Domicilio' ? newApp.tarifaDomicilio : 0));
+
+  const getRecalculatedEditTotals = (app: Appointment, newFields: Partial<Appointment>): Appointment => {
+    const merged = { ...app, ...newFields };
+    const currentTotalServices = merged.serviciosIds.reduce((sum, sId) => {
+      const price = merged.serviciosPrecios?.[sId] ?? filteredServices.find(s => s.id === sId)?.precio ?? 0;
+      const mult = merged.serviciosMultiplicadores?.[sId] ?? 1;
+      return sum + price * mult;
+    }, 0);
+    const discountAmount = merged.descuentoTipo === 'percent'
+      ? (currentTotalServices * ((merged.descuentoValor || 0) / 100))
+      : (merged.descuentoValor || 0);
+    const newFinal = Math.max(0, currentTotalServices - discountAmount) + (merged.tipo === 'Domicilio' ? (merged.tarifaDomicilio || 0) : 0);
+    const newOriginal = merged.serviciosIds.reduce((sum, sId) => {
+      const basePrice = filteredServices.find(s => s.id === sId)?.precio ?? 0;
+      const mult = merged.serviciosMultiplicadores?.[sId] ?? 1;
+      return sum + basePrice * mult;
+    }, 0);
+    return {
+      ...merged,
+      precioFinal: newFinal,
+      precioOriginal: newOriginal
+    };
+  };
 
   const handleAddAppointment = () => {
     if (!newApp.clientId || newApp.serviciosIds.length === 0) return;
@@ -209,6 +239,7 @@ export const Agenda: React.FC = () => {
       direccion: '',
       tarifaDomicilio: 0, 
       serviciosPrecios: {}, 
+      serviciosMultiplicadores: {},
       descuentoValor: 0,
       descuentoTipo: 'fixed',
       notas: '' 
@@ -364,7 +395,10 @@ export const Agenda: React.FC = () => {
                             setDetailsApp(app);
                             setIsDetailsModalOpen(true);
                           } else {
-                            setEditingApp(app);
+                            setEditingApp({
+                              ...app,
+                              serviciosMultiplicadores: app.serviciosMultiplicadores || {}
+                            });
                             setIsEditModalOpen(true);
                           }
                         }}
@@ -715,7 +749,15 @@ export const Agenda: React.FC = () => {
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Cliente</label>
                   <select 
                     value={newApp.clientId}
-                    onChange={(e) => setNewApp({...newApp, clientId: e.target.value})}
+                    onChange={(e) => {
+                      const clientId = e.target.value;
+                      const client = filteredClients.find(c => c.id === clientId);
+                      setNewApp({
+                        ...newApp, 
+                        clientId,
+                        direccion: client?.direccion || ''
+                      });
+                    }}
                     className="w-full bg-brand-pink-light border-none rounded-2xl p-4 text-sm focus:ring-2 ring-brand-accent"
                   >
                     <option value="">Seleccionar...</option>
@@ -747,7 +789,17 @@ export const Agenda: React.FC = () => {
                           const ids = isSelected 
                             ? newApp.serviciosIds.filter(id => id !== s.id)
                             : [...newApp.serviciosIds, s.id];
-                          setNewApp({...newApp, serviciosIds: ids});
+                          const newMults = { ...newApp.serviciosMultiplicadores };
+                          if (!isSelected) {
+                            newMults[s.id] = 1;
+                          } else {
+                            delete newMults[s.id];
+                          }
+                          setNewApp({
+                            ...newApp, 
+                            serviciosIds: ids,
+                            serviciosMultiplicadores: newMults
+                          });
                         }}
                         className={cn(
                           "px-3 py-2 rounded-xl text-[10px] font-bold transition-all",
@@ -775,7 +827,21 @@ export const Agenda: React.FC = () => {
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tipo</label>
                   <select 
                     value={newApp.tipo}
-                    onChange={(e) => setNewApp({...newApp, tipo: e.target.value as AppointmentType})}
+                    onChange={(e) => {
+                      const tipo = e.target.value as AppointmentType;
+                      let extra = {};
+                      if (tipo === 'Domicilio' && !newApp.direccion && newApp.clientId) {
+                        const client = filteredClients.find(c => c.id === newApp.clientId);
+                        if (client?.direccion) {
+                          extra = { direccion: client.direccion };
+                        }
+                      }
+                      setNewApp({
+                        ...newApp,
+                        tipo,
+                        ...extra
+                      });
+                    }}
                     className="w-full bg-brand-pink-light border-none rounded-2xl p-4 text-sm"
                   >
                     <option value="Salón">Salón</option>
@@ -828,29 +894,52 @@ export const Agenda: React.FC = () => {
                 <h3 className="text-[10px] font-black text-brand-accent uppercase tracking-[0.2em] border-b border-brand-pink/50 pb-3">Ajuste de Precios</h3>
                 
                 <div className="space-y-3">
-                  {selectedServices.map(s => (
-                    <div key={s.id} className="flex justify-between items-center">
-                      <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">{s.nombre}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-slate-400">$</span>
-                        <input 
-                          type="number"
-                          min="0"
-                          onWheel={(e) => e.currentTarget.blur()}
-                          value={newApp.serviciosPrecios[s.id] ?? s.precio}
-                          onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
-                            setNewApp({
-                              ...newApp, 
-                              serviciosPrecios: { ...newApp.serviciosPrecios, [s.id]: val }
-                            });
-                          }}
-                          className="w-24 bg-white border-2 border-brand-pink rounded-xl px-3 py-2 text-xs font-black text-brand-accent text-right shadow-sm"
-                        />
+                  {selectedServices.map(s => {
+                    const currentMult = newApp.serviciosMultiplicadores?.[s.id] ?? 1;
+                    return (
+                      <div key={s.id} className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">{s.nombre}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-slate-400">x</span>
+                          <input 
+                            type="number"
+                            min="1"
+                            step="1"
+                            onWheel={(e) => e.currentTarget.blur()}
+                            value={currentMult}
+                            onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
+                            onChange={(e) => {
+                              const val = Math.max(1, Number(e.target.value) || 1);
+                              setNewApp({
+                                ...newApp,
+                                serviciosMultiplicadores: {
+                                  ...newApp.serviciosMultiplicadores,
+                                  [s.id]: val
+                                }
+                              });
+                            }}
+                            className="w-12 bg-white border-2 border-brand-pink rounded-xl px-1 py-2 text-xs font-black text-brand-accent text-center shadow-sm"
+                          />
+                          <span className="text-[10px] font-black text-slate-400">$</span>
+                          <input 
+                            type="number"
+                            min="0"
+                            onWheel={(e) => e.currentTarget.blur()}
+                            value={newApp.serviciosPrecios[s.id] ?? s.precio}
+                            onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
+                              setNewApp({
+                                ...newApp, 
+                                serviciosPrecios: { ...newApp.serviciosPrecios, [s.id]: val }
+                              });
+                            }}
+                            className="w-24 bg-white border-2 border-brand-pink rounded-xl px-3 py-2 text-xs font-black text-brand-accent text-right shadow-sm"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="pt-4 border-t-2 border-brand-pink space-y-4">
@@ -941,7 +1030,17 @@ export const Agenda: React.FC = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase mb-1.5 block tracking-widest">Tipo</label>
                   <select 
                     value={editingApp.tipo}
-                    onChange={(e) => setEditingApp({...editingApp, tipo: e.target.value as AppointmentType})}
+                    onChange={(e) => {
+                      const tipo = e.target.value as AppointmentType;
+                      let extra: Partial<Appointment> = { tipo };
+                      if (tipo === 'Domicilio' && !editingApp.direccion && editingApp.clientId) {
+                        const client = filteredClients.find(c => c.id === editingApp.clientId);
+                        if (client?.direccion) {
+                          extra.direccion = client.direccion;
+                        }
+                      }
+                      setEditingApp(getRecalculatedEditTotals(editingApp, extra));
+                    }}
                     className="w-full bg-brand-pink-light border-none rounded-2xl p-4 text-sm font-bold text-slate-700"
                   >
                     <option value="Salón">Salón</option>
@@ -964,22 +1063,20 @@ export const Agenda: React.FC = () => {
                             : [...editingApp.serviciosIds, s.id];
                           
                           const newPrecios = { ...editingApp.serviciosPrecios };
+                          const newMults = { ...editingApp.serviciosMultiplicadores };
                           if (!isSelected) {
                             newPrecios[s.id] = s.precio;
+                            newMults[s.id] = 1;
                           } else {
                             delete newPrecios[s.id];
+                            delete newMults[s.id];
                           }
 
-                          const newEstimated = ids.reduce((sum: number, id: string) => sum + (filteredServices.find(srv => srv.id === id)?.precio || 0), 0);
-                          const newFinal = ids.reduce((sum: number, id: string) => sum + (newPrecios[id] || 0), 0) + (editingApp.tipo === 'Domicilio' ? (editingApp.tarifaDomicilio || 0) : 0);
-
-                          setEditingApp({
-                            ...editingApp, 
+                          setEditingApp(getRecalculatedEditTotals(editingApp, {
                             serviciosIds: ids,
                             serviciosPrecios: newPrecios,
-                            precioOriginal: newEstimated,
-                            precioFinal: newFinal
-                          });
+                            serviciosMultiplicadores: newMults
+                          }));
                         }}
                         className={cn(
                           "px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
@@ -1007,8 +1104,7 @@ export const Agenda: React.FC = () => {
                       onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                       onChange={(e) => {
                         const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
-                        const newFinal = editingApp.precioFinal - (editingApp.tarifaDomicilio || 0) + val;
-                        setEditingApp({...editingApp, tarifaDomicilio: val, precioFinal: newFinal});
+                        setEditingApp(getRecalculatedEditTotals(editingApp, { tarifaDomicilio: val }));
                       }}
                       className="w-full bg-brand-pink-light border-none rounded-2xl p-4 text-sm font-bold text-slate-700" 
                     />
@@ -1042,10 +1138,26 @@ export const Agenda: React.FC = () => {
                   {editingApp.serviciosIds.map(id => {
                     const s = filteredServices.find(srv => srv.id === id);
                     if (!s) return null;
+                    const currentMult = editingApp.serviciosMultiplicadores?.[id] ?? 1;
                     return (
                       <div key={id} className="flex justify-between items-center">
                         <span className="text-[10px] font-black text-slate-600 uppercase tracking-tighter">{s.nombre}</span>
                         <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-slate-400">x</span>
+                          <input 
+                            type="number"
+                            min="1"
+                            step="1"
+                            onWheel={(e) => e.currentTarget.blur()}
+                            value={currentMult}
+                            onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
+                            onChange={(e) => {
+                              const val = Math.max(1, Number(e.target.value) || 1);
+                              const newMults = { ...editingApp.serviciosMultiplicadores, [id]: val };
+                              setEditingApp(getRecalculatedEditTotals(editingApp, { serviciosMultiplicadores: newMults }));
+                            }}
+                            className="w-12 bg-white border-2 border-brand-pink rounded-xl px-1 py-2 text-xs font-black text-brand-accent text-center shadow-sm"
+                          />
                           <span className="text-[10px] font-black text-slate-400">$</span>
                           <input 
                             type="number"
@@ -1056,18 +1168,7 @@ export const Agenda: React.FC = () => {
                             onChange={(e) => {
                               const val = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value));
                               const newPrecios = { ...editingApp.serviciosPrecios, [id]: val };
-                              
-                              const currentTotalServices = editingApp.serviciosIds.reduce((sum: number, sId: string) => sum + (newPrecios[sId] || 0), 0);
-                              const discountAmount = editingApp.descuentoTipo === 'percent' 
-                                ? (currentTotalServices * ((editingApp.descuentoValor || 0) / 100)) 
-                                : (editingApp.descuentoValor || 0);
-                              const newFinal = Math.max(0, currentTotalServices - discountAmount) + (editingApp.tipo === 'Domicilio' ? (editingApp.tarifaDomicilio || 0) : 0);
-
-                              setEditingApp({
-                                ...editingApp,
-                                serviciosPrecios: newPrecios,
-                                precioFinal: newFinal
-                              });
+                              setEditingApp(getRecalculatedEditTotals(editingApp, { serviciosPrecios: newPrecios }));
                             }}
                             className="w-24 bg-white border-2 border-brand-pink rounded-xl px-3 py-2 text-xs font-black text-brand-accent text-right shadow-sm"
                           />
@@ -1084,13 +1185,7 @@ export const Agenda: React.FC = () => {
                       <button 
                         onClick={() => {
                           const newTipo = editingApp.descuentoTipo === 'fixed' ? 'percent' : 'fixed';
-                          const currentTotalServices = editingApp.serviciosIds.reduce((sum: number, sId: string) => sum + (editingApp.serviciosPrecios?.[sId] || filteredServices.find(s => s.id === sId)?.precio || 0), 0);
-                          const discountAmount = newTipo === 'percent' 
-                            ? (currentTotalServices * ((editingApp.descuentoValor || 0) / 100)) 
-                            : (editingApp.descuentoValor || 0);
-                          const newFinal = Math.max(0, currentTotalServices - discountAmount) + (editingApp.tipo === 'Domicilio' ? (editingApp.tarifaDomicilio || 0) : 0);
-
-                          setEditingApp({...editingApp, descuentoTipo: newTipo, precioFinal: newFinal});
+                          setEditingApp(getRecalculatedEditTotals(editingApp, { descuentoTipo: newTipo }));
                         }}
                         className="px-2 py-1 bg-brand-pink text-brand-accent rounded-lg text-[8px] font-black uppercase"
                       >
@@ -1106,13 +1201,7 @@ export const Agenda: React.FC = () => {
                         onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                         onChange={(e) => {
                           const val = Math.max(0, Number(e.target.value));
-                          const currentTotalServices = editingApp.serviciosIds.reduce((sum: number, sId: string) => sum + (editingApp.serviciosPrecios?.[sId] || filteredServices.find(s => s.id === sId)?.precio || 0), 0);
-                          const discountAmount = editingApp.descuentoTipo === 'percent' 
-                            ? (currentTotalServices * (val / 100)) 
-                            : val;
-                          const newFinal = Math.max(0, currentTotalServices - discountAmount) + (editingApp.tipo === 'Domicilio' ? (editingApp.tarifaDomicilio || 0) : 0);
-
-                          setEditingApp({...editingApp, descuentoValor: val, precioFinal: newFinal});
+                          setEditingApp(getRecalculatedEditTotals(editingApp, { descuentoValor: val }));
                         }}
                         className="w-24 bg-white border-2 border-brand-pink rounded-xl px-3 py-2 text-xs font-black text-brand-accent text-right shadow-sm"
                         placeholder="0"

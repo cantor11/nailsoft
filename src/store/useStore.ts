@@ -212,6 +212,7 @@ export const useStore = create<AppState>()(
           serviciosNombres,
           workerNombre: worker?.nombre,
           clientNombre: client?.nombre,
+          serviciosMultiplicadores: appData.serviciosMultiplicadores || {},
           businessId: state.activeBusinessId
         };
 
