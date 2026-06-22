@@ -23,7 +23,7 @@ export const Agenda: React.FC = () => {
   const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingApp, setEditingApp] = useState<Appointment | null>(null);
+  const [editingApp, setEditingApp] = useState<Appointment | any>(null);
   const [filter, setFilter] = useState<'pending' | 'finished' | 'all'>('all');
   const [limit, setLimit] = useState(15);
   const [showUndoToast, setShowUndoToast] = useState(false);
@@ -47,7 +47,7 @@ export const Agenda: React.FC = () => {
     direccion: '',
     tarifaDomicilio: 0,
     serviciosPrecios: {} as Record<string, number>,
-    serviciosMultiplicadores: {} as Record<string, number>,
+    serviciosMultiplicadores: {} as Record<string, number | ''>,
     descuentoValor: 0,
     descuentoTipo: 'fixed' as 'fixed' | 'percent',
     notas: ''
@@ -181,11 +181,13 @@ export const Agenda: React.FC = () => {
   const selectedServices = newApp.serviciosIds.map(id => filteredServices.find(s => s.id === id)).filter(Boolean) as Service[];
   
   const estimatedValue = selectedServices.reduce((sum, s) => {
-    const m = newApp.serviciosMultiplicadores?.[s.id] ?? 1;
+    const rawM = newApp.serviciosMultiplicadores?.[s.id];
+    const m = (rawM === '' || rawM === undefined || rawM === null || rawM < 1) ? 1 : rawM;
     return sum + s.precio * m;
   }, 0);
   const currentTotalServices = selectedServices.reduce((sum, s) => {
-    const m = newApp.serviciosMultiplicadores?.[s.id] ?? 1;
+    const rawM = newApp.serviciosMultiplicadores?.[s.id];
+    const m = (rawM === '' || rawM === undefined || rawM === null || rawM < 1) ? 1 : rawM;
     return sum + (newApp.serviciosPrecios[s.id] ?? s.precio) * m;
   }, 0);
   
@@ -196,20 +198,22 @@ export const Agenda: React.FC = () => {
   const finalTotal = Math.max(0, currentTotalServices - discountAmount) + (newApp.tipo === 'Domicilio' ? newApp.tarifaDomicilio : 0);
   const difference = finalTotal - (estimatedValue + (newApp.tipo === 'Domicilio' ? newApp.tarifaDomicilio : 0));
 
-  const getRecalculatedEditTotals = (app: Appointment, newFields: Partial<Appointment>): Appointment => {
+  const getRecalculatedEditTotals = (app: any, newFields: any): any => {
     const merged = { ...app, ...newFields };
-    const currentTotalServices = merged.serviciosIds.reduce((sum, sId) => {
+    const currentTotalServices = merged.serviciosIds.reduce((sum: number, sId: string) => {
       const price = merged.serviciosPrecios?.[sId] ?? filteredServices.find(s => s.id === sId)?.precio ?? 0;
-      const mult = merged.serviciosMultiplicadores?.[sId] ?? 1;
+      const rawM = merged.serviciosMultiplicadores?.[sId];
+      const mult = (rawM === '' || rawM === undefined || rawM === null || rawM < 1) ? 1 : rawM;
       return sum + price * mult;
     }, 0);
     const discountAmount = merged.descuentoTipo === 'percent'
       ? (currentTotalServices * ((merged.descuentoValor || 0) / 100))
       : (merged.descuentoValor || 0);
     const newFinal = Math.max(0, currentTotalServices - discountAmount) + (merged.tipo === 'Domicilio' ? (merged.tarifaDomicilio || 0) : 0);
-    const newOriginal = merged.serviciosIds.reduce((sum, sId) => {
+    const newOriginal = merged.serviciosIds.reduce((sum: number, sId: string) => {
       const basePrice = filteredServices.find(s => s.id === sId)?.precio ?? 0;
-      const mult = merged.serviciosMultiplicadores?.[sId] ?? 1;
+      const rawM = merged.serviciosMultiplicadores?.[sId];
+      const mult = (rawM === '' || rawM === undefined || rawM === null || rawM < 1) ? 1 : rawM;
       return sum + basePrice * mult;
     }, 0);
     return {
@@ -222,12 +226,19 @@ export const Agenda: React.FC = () => {
   const handleAddAppointment = () => {
     if (!newApp.clientId || newApp.serviciosIds.length === 0) return;
     
+    // Sanitize multipliers
+    const sanitizedMultipliers: Record<string, number> = {};
+    for (const [k, v] of Object.entries(newApp.serviciosMultiplicadores)) {
+      sanitizedMultipliers[k] = (v === '' || v === undefined || v === null || Number(v) < 1) ? 1 : Number(v);
+    }
+
     addAppointment({
       ...newApp,
+      serviciosMultiplicadores: sanitizedMultipliers,
       fecha: format(selectedDate, 'yyyy-MM-dd'),
       precioOriginal: estimatedValue,
       precioFinal: finalTotal,
-    });
+    } as any);
     
     setIsModalOpen(false);
     setNewApp({ 
@@ -909,7 +920,17 @@ export const Agenda: React.FC = () => {
                             value={currentMult}
                             onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                             onChange={(e) => {
-                              const val = Math.max(1, Number(e.target.value) || 1);
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              setNewApp({
+                                ...newApp,
+                                serviciosMultiplicadores: {
+                                  ...newApp.serviciosMultiplicadores,
+                                  [s.id]: val
+                                }
+                              });
+                            }}
+                            onBlur={(e) => {
+                              const val = e.target.value === '' || Number(e.target.value) < 1 ? 1 : Number(e.target.value);
                               setNewApp({
                                 ...newApp,
                                 serviciosMultiplicadores: {
@@ -1152,7 +1173,12 @@ export const Agenda: React.FC = () => {
                             value={currentMult}
                             onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                             onChange={(e) => {
-                              const val = Math.max(1, Number(e.target.value) || 1);
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              const newMults = { ...editingApp.serviciosMultiplicadores, [id]: val };
+                              setEditingApp(getRecalculatedEditTotals(editingApp, { serviciosMultiplicadores: newMults }));
+                            }}
+                            onBlur={(e) => {
+                              const val = e.target.value === '' || Number(e.target.value) < 1 ? 1 : Number(e.target.value);
                               const newMults = { ...editingApp.serviciosMultiplicadores, [id]: val };
                               setEditingApp(getRecalculatedEditTotals(editingApp, { serviciosMultiplicadores: newMults }));
                             }}
@@ -1227,7 +1253,16 @@ export const Agenda: React.FC = () => {
               <button 
                 onClick={() => {
                   if (editingApp) {
-                    updateAppointment(editingApp.id, editingApp);
+                    const sanitizedMultipliers: Record<string, number> = {};
+                    if (editingApp.serviciosMultiplicadores) {
+                      for (const [k, v] of Object.entries(editingApp.serviciosMultiplicadores)) {
+                        sanitizedMultipliers[k] = (v === '' || v === undefined || v === null || Number(v) < 1) ? 1 : Number(v);
+                      }
+                    }
+                    updateAppointment(editingApp.id, {
+                      ...editingApp,
+                      serviciosMultiplicadores: sanitizedMultipliers
+                    });
                     setIsEditModalOpen(false);
                   }
                 }}
