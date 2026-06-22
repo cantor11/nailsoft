@@ -1,6 +1,6 @@
 import React from 'react';
 import { Appointment, Service, Worker, BusinessInfo } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface InvoiceProps {
@@ -32,7 +32,7 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
         </div>
         <div className="text-right">
           <h2 className="text-[10px] font-black text-brand-accent uppercase mb-2 tracking-widest">Fecha y Hora</h2>
-          <p className="text-sm font-bold">{format(new Date(appointment.fecha), "EEEE, d 'de' MMMM", { locale: es })}</p>
+          <p className="text-sm font-bold">{format(parseISO(appointment.fecha), "EEEE, d 'de' MMMM", { locale: es })}</p>
           <p className="text-sm font-bold text-slate-500">{appointment.hora}</p>
         </div>
       </div>
@@ -41,29 +41,38 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
         <table className="w-full">
           <thead>
             <tr className="border-b border-brand-pink text-[10px] font-black text-slate-400 uppercase text-left">
-              <th className="py-2">Servicio</th>
-              <th className="py-2 text-right">Precio</th>
+              <th className="py-2 w-1/2">Servicio</th>
+              <th className="py-2 text-right">Unitario</th>
+              <th className="py-2 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
             {appointment.serviciosIds.map(id => {
               const service = services.find(s => s.id === id);
               const price = appointment.serviciosPrecios?.[id] ?? service?.precio ?? 0;
+              const mult = appointment.serviciosMultiplicadores?.[id] ?? 1;
+              const rowTotal = price * mult;
               return (
                 <tr key={id} className="border-b border-brand-pink/30">
-                  <td className="py-4 text-sm font-bold text-slate-700">{appointment.serviciosNombres?.[id] || service?.nombre || 'Servicio'}</td>
-                  <td className="py-4 text-sm font-bold text-slate-700 text-right">${price.toLocaleString()}</td>
+                  <td className="py-4 text-sm font-bold text-slate-700">
+                    <span className="block">{appointment.serviciosNombres?.[id] || service?.nombre || 'Servicio'}</span>
+                    {mult >= 1 && <span className="text-[10px] font-black text-brand-accent uppercase tracking-wider">Cantidad: x{mult}</span>}
+                  </td>
+                  <td className="py-4 text-sm font-bold text-slate-500 text-right">${price.toLocaleString()}</td>
+                  <td className="py-4 text-sm font-black text-slate-800 text-right">${rowTotal.toLocaleString()}</td>
                 </tr>
               );
             })}
             {appointment.descuentoValor !== undefined && appointment.descuentoValor > 0 && (
               <tr className="border-b border-brand-pink/30 text-emerald-600">
-                <td className="py-4 text-sm font-bold italic">Descuento ({appointment.descuentoTipo === 'percent' ? `${appointment.descuentoValor}%` : `$${appointment.descuentoValor}`})</td>
+                <td colSpan={2} className="py-4 text-sm font-bold italic">Descuento ({appointment.descuentoTipo === 'percent' ? `${appointment.descuentoValor}%` : `$${appointment.descuentoValor}`})</td>
                 <td className="py-4 text-sm font-bold text-right">
                   {(() => {
                     const currentTotalServices = appointment.serviciosIds.reduce((sum, id) => {
                       const service = services.find(s => s.id === id);
-                      return sum + (appointment.serviciosPrecios?.[id] ?? service?.precio ?? 0);
+                      const price = appointment.serviciosPrecios?.[id] ?? service?.precio ?? 0;
+                      const mult = appointment.serviciosMultiplicadores?.[id] ?? 1;
+                      return sum + price * mult;
                     }, 0);
                     const discountAmount = appointment.descuentoTipo === 'percent' 
                       ? (currentTotalServices * (appointment.descuentoValor / 100)) 
@@ -75,7 +84,7 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
             )}
             {appointment.tipo === 'Domicilio' && appointment.tarifaDomicilio > 0 && (
               <tr className="border-b border-brand-pink/30">
-                <td className="py-4 text-sm font-bold text-slate-700 italic">Tarifa Domicilio</td>
+                <td colSpan={2} className="py-4 text-sm font-bold text-slate-700 italic">Tarifa Domicilio</td>
                 <td className="py-4 text-sm font-bold text-slate-700 text-right">${appointment.tarifaDomicilio?.toLocaleString()}</td>
               </tr>
             )}

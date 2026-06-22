@@ -526,7 +526,7 @@ export const Materiales: React.FC = () => {
                 </select>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Precio Individual</label>
                   <input 
@@ -555,7 +555,7 @@ export const Materiales: React.FC = () => {
                 </div>
               </div>
  
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidades en Stock</label>
                   <input 
@@ -569,24 +569,24 @@ export const Materiales: React.FC = () => {
                     onChange={(e) => setForm({...form, unidades: Math.max(0, Number(e.target.value))})}
                   />
                 </div>
-                <div>
+                <div className="flex flex-col w-full overflow-hidden">
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Alerta de Stock</label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-row items-stretch gap-2 w-full">
                     <input 
                       type="number"
                       min="0"
                       onWheel={(e) => e.currentTarget.blur()}
                       placeholder="Umbral*"
-                      className="flex-1 bg-brand-pink-light rounded-2xl p-4 text-sm"
+                      className="flex-[3] min-w-0 bg-brand-pink-light rounded-2xl p-4 text-sm"
                       value={form.alertaStock === 0 ? '' : form.alertaStock}
                       onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
                       onChange={(e) => setForm({...form, alertaStock: Math.max(0, Number(e.target.value))})}
                     />
                     <button 
                       onClick={() => setForm({...form, tipoAlerta: form.tipoAlerta === 'unidades' ? 'servicios' : 'unidades'})}
-                      className="px-3 bg-brand-pink text-brand-accent rounded-2xl text-[8px] font-black uppercase"
+                      className="flex-[2] sm:flex-[1] px-2 bg-brand-pink text-brand-accent rounded-2xl text-[10px] font-black uppercase whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center min-w-[60px] active:scale-95 transition-transform"
                     >
-                      {form.tipoAlerta === 'unidades' ? 'Und.' : 'Usos'}
+                      {form.tipoAlerta === 'unidades' ? 'UND' : 'SERV'}
                     </button>
                   </div>
                 </div>
