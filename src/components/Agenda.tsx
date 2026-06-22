@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Calendar, Clock, MapPin, User, CheckCircle2, Circle, ChevronLeft, ChevronRight, Trash2, Edit, FileText, X, RotateCcw, Search } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, User, CheckCircle2, Circle, ChevronLeft, ChevronRight, Trash2, Edit, FileText, X, RotateCcw, Search, Mic } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { AppointmentType, Service, Appointment, PaymentMethod } from '../types';
+import { ExtractedAppointmentData } from '../services/groqService';
 import { toPng } from 'html-to-image';
 import { Invoice } from './Invoice';
+import { VoiceScheduler } from './VoiceScheduler';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -28,6 +30,7 @@ export const Agenda: React.FC = () => {
   const [limit, setLimit] = useState(15);
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [captureApp, setCaptureApp] = useState<Appointment | null>(null);
+  const [showVoiceScheduler, setShowVoiceScheduler] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
   
   const { 
@@ -200,19 +203,92 @@ export const Agenda: React.FC = () => {
     });
     
     setIsModalOpen(false);
-    setNewApp({ 
-      clientId: '', 
-      workerId: '', 
-      hora: '10:00', 
-      serviciosIds: [], 
-      tipo: 'Salón', 
+    setNewApp({
+      clientId: '',
+      workerId: '',
+      hora: '10:00',
+      serviciosIds: [],
+      tipo: 'Salón',
       direccion: '',
-      tarifaDomicilio: 0, 
-      serviciosPrecios: {}, 
+      tarifaDomicilio: 0,
+      serviciosPrecios: {},
       descuentoValor: 0,
       descuentoTipo: 'fixed',
-      notas: '' 
+      notas: ''
     });
+  };
+
+  const handleVoiceExtracted = (data: ExtractedAppointmentData) => {
+    const filteredClients = clients.filter(c => c.businessId === activeBusinessId);
+    const filteredServices = services.filter(s => s.businessId === activeBusinessId);
+    const filteredWorkers = workers.filter(w => w.businessId === activeBusinessId);
+
+    const matchedClient = data.clientName
+      ? filteredClients.find(c => c.nombre.toLowerCase().trim() === data.clientName!.toLowerCase().trim())
+      : null;
+
+    const matchedService = data.serviceName
+      ? filteredServices.find(s =>
+          s.nombre.toLowerCase().includes(data.serviceName!.toLowerCase()) ||
+          data.serviceName!.toLowerCase().includes(s.nombre.toLowerCase())
+        )
+      : null;
+
+    const normalizeString = (str: string): string => {
+      return str
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+    };
+
+    const workerNameNormalized = data.workerName ? normalizeString(data.workerName) : '';
+
+    const matchedWorker = workerNameNormalized
+      ? filteredWorkers.find(w => {
+          const workerNormalized = normalizeString(w.nombre);
+          return (
+            workerNormalized.includes(workerNameNormalized) ||
+            workerNameNormalized.includes(workerNormalized) ||
+            workerNormalized.split(' ').some(word =>
+              word.length > 2 && workerNameNormalized.split(' ').some(uWord => word.includes(uWord) || uWord.includes(word))
+            )
+          );
+        })
+      : null;
+
+    const matchedClientId = matchedClient?.id || '';
+    const matchedWorkerId = matchedWorker?.id || '';
+    const matchedServiceIds = matchedService ? [matchedService.id] : [];
+
+    setNewApp({
+      clientId: matchedClientId,
+      workerId: matchedWorkerId,
+      hora: data.time || '10:00',
+      serviciosIds: matchedServiceIds,
+      tipo: data.locationType || 'Salón',
+      direccion: data.address || '',
+      tarifaDomicilio: 0,
+      serviciosPrecios: matchedService ? { [matchedService.id]: matchedService.precio } : {},
+      descuentoValor: 0,
+      descuentoTipo: 'fixed',
+      notas: data.notes || ''
+    });
+
+    if (data.date) {
+      try {
+        const parsedDate = parseISO(data.date);
+        if (!isNaN(parsedDate.getTime())) {
+          setSelectedDate(parsedDate);
+          setCurrentWeekStart(addDays(parsedDate, -parsedDate.getDay()));
+        }
+      } catch {
+        // Keep current date if parsing fails
+      }
+    }
+
+    setIsModalOpen(true);
+    setShowVoiceScheduler(false);
   };
 
   return (
@@ -446,12 +522,20 @@ export const Agenda: React.FC = () => {
         </AnimatePresence>
       </div>
 
-      {/* Botón Flotante */}
-      <button 
+      {/* Botón Flotante Manual */}
+      <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-24 right-6 w-14 h-14 bg-brand-accent text-white rounded-full shadow-xl flex items-center justify-center active:scale-90 transition-transform z-10"
       >
         <Plus className="w-8 h-8" />
+      </button>
+
+      {/* Botón Flotante Voz */}
+      <button
+        onClick={() => setShowVoiceScheduler(true)}
+        className="fixed bottom-40 right-6 w-14 h-14 bg-purple-500 text-white rounded-full shadow-xl flex items-center justify-center active:scale-90 transition-transform z-10"
+      >
+        <Mic className="w-7 h-7" />
       </button>
 
       {/* Undo Toast removed - handled globally */}
@@ -1153,17 +1237,25 @@ export const Agenda: React.FC = () => {
       {/* Hidden Invoice for capture */}
       <div className="fixed -left-[2000px] top-0 pointer-events-none opacity-0">
         {captureApp && activeBusiness && (
-          <Invoice 
+          <Invoice
             key={`capture-${captureApp.id}-${captureApp.completada}-${Date.now()}`}
             id="invoice-capture"
-            appointment={captureApp} 
-            business={activeBusiness} 
-            services={filteredServices} 
+            appointment={captureApp}
+            business={activeBusiness}
+            services={filteredServices}
             worker={workers.find(w => w.id === captureApp.workerId)}
             clientName={clients.find(c => c.id === captureApp.clientId)?.nombre}
           />
         )}
       </div>
+
+      {/* Voice Scheduler Modal */}
+      {showVoiceScheduler && (
+        <VoiceScheduler
+          onClose={() => setShowVoiceScheduler(false)}
+          onExtracted={handleVoiceExtracted}
+        />
+      )}
     </div>
   );
 };
