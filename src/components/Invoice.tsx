@@ -1,6 +1,6 @@
 import React from 'react';
 import { Appointment, Service, Worker, BusinessInfo } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 interface InvoiceProps {
@@ -32,7 +32,7 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
         </div>
         <div className="text-right">
           <h2 className="text-[10px] font-black text-brand-accent uppercase mb-2 tracking-widest">Fecha y Hora</h2>
-          <p className="text-sm font-bold">{format(new Date(appointment.fecha), "EEEE, d 'de' MMMM", { locale: es })}</p>
+          <p className="text-sm font-bold">{format(parseISO(appointment.fecha), "EEEE, d 'de' MMMM", { locale: es })}</p>
           <p className="text-sm font-bold text-slate-500">{appointment.hora}</p>
         </div>
       </div>
@@ -49,10 +49,15 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
             {appointment.serviciosIds.map(id => {
               const service = services.find(s => s.id === id);
               const price = appointment.serviciosPrecios?.[id] ?? service?.precio ?? 0;
+              const mult = appointment.serviciosMultiplicadores?.[id] ?? 1;
+              const rowTotal = price * mult;
               return (
                 <tr key={id} className="border-b border-brand-pink/30">
-                  <td className="py-4 text-sm font-bold text-slate-700">{appointment.serviciosNombres?.[id] || service?.nombre || 'Servicio'}</td>
-                  <td className="py-4 text-sm font-bold text-slate-700 text-right">${price.toLocaleString()}</td>
+                  <td className="py-4 text-sm font-bold text-slate-700">
+                    {appointment.serviciosNombres?.[id] || service?.nombre || 'Servicio'}
+                    {mult > 1 && <span className="text-brand-accent ml-1">(x{mult})</span>}
+                  </td>
+                  <td className="py-4 text-sm font-bold text-slate-700 text-right">${rowTotal.toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -63,7 +68,9 @@ export const Invoice: React.FC<InvoiceProps> = ({ appointment, business, service
                   {(() => {
                     const currentTotalServices = appointment.serviciosIds.reduce((sum, id) => {
                       const service = services.find(s => s.id === id);
-                      return sum + (appointment.serviciosPrecios?.[id] ?? service?.precio ?? 0);
+                      const price = appointment.serviciosPrecios?.[id] ?? service?.precio ?? 0;
+                      const mult = appointment.serviciosMultiplicadores?.[id] ?? 1;
+                      return sum + price * mult;
                     }, 0);
                     const discountAmount = appointment.descuentoTipo === 'percent' 
                       ? (currentTotalServices * (appointment.descuentoValor / 100)) 
