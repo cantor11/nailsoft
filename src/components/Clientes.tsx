@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { Plus, Trash2, User, Phone, MapPin, Search, X, Edit2, Palette, ChevronLeft, Calendar, FileText, Users, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, User, Phone, MapPin, Search, X, Edit2, Palette, ChevronLeft, Calendar, FileText, Users, AlertTriangle, Mic, MicOff, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Client, AppointmentType } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useVoiceClientSearch } from '../hooks/useVoiceClientSearch';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -26,8 +27,39 @@ export const Clientes: React.FC = () => {
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(15);
   const [selectedClientForHistory, setSelectedClientForHistory] = useState<Client | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   
   const selectedClientRef = useRef(selectedClientForHistory);
+
+  const businessClients = clients.filter(c => c.businessId === activeBusinessId);
+
+  const {
+    status: voiceStatus,
+    transcript,
+    foundClient,
+    error: voiceErrorFromHook,
+    recordingDuration,
+    isConfigured: voiceIsConfigured,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    reset: resetVoice,
+    speakMessage,
+  } = useVoiceClientSearch(businessClients);
+
+  useEffect(() => {
+    if (voiceErrorFromHook) {
+      setVoiceError(voiceErrorFromHook);
+      setTimeout(() => setVoiceError(null), 5000);
+    }
+  }, [voiceErrorFromHook]);
+
+  useEffect(() => {
+    if (foundClient) {
+      setSelectedClientForHistory(foundClient);
+      resetVoice();
+    }
+  }, [foundClient, resetVoice]);
 
   useEffect(() => {
     selectedClientRef.current = selectedClientForHistory;
@@ -250,9 +282,95 @@ export const Clientes: React.FC = () => {
             setSearch(e.target.value);
             setLimit(15);
           }}
-          className="w-full bg-white border-none rounded-2xl py-3 pl-10 pr-4 text-sm shadow-sm focus:ring-2 ring-brand-accent outline-none"
+          className="w-full bg-white border-none rounded-2xl py-3 pl-10 pr-12 text-sm shadow-sm focus:ring-2 ring-brand-accent outline-none"
         />
+        {voiceIsConfigured ? (
+          <button
+            onClick={voiceStatus === 'recording' ? stopRecording : startRecording}
+            className={cn(
+              "absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-xl transition-all",
+              voiceStatus === 'recording' 
+                ? "bg-red-500 text-white animate-pulse" 
+                : "bg-brand-pink-light text-brand-accent hover:bg-brand-pink active:scale-90"
+            )}
+            title={voiceStatus === 'recording' ? 'Detener grabación' : 'Buscar por voz'}
+          >
+            {voiceStatus === 'recording' ? (
+              <div className="relative">
+                <MicOff className="w-4 h-4" />
+                {recordingDuration > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                )}
+              </div>
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
+          </button>
+        ) : (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-300" title="Comando de voz no disponible">
+            <MicOff className="w-4 h-4" />
+          </div>
+        )}
       </div>
+
+      <AnimatePresence>
+        {voiceError && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-4 p-3 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-2"
+          >
+            <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+            <p className="text-xs text-red-600">{voiceError}</p>
+          </motion.div>
+        )}
+
+        {voiceStatus !== 'idle' && voiceStatus !== 'error' && voiceStatus !== 'found' && voiceStatus !== 'not_found' && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-4 p-4 bg-brand-pink-light border-2 border-brand-pink rounded-2xl"
+          >
+            <div className="flex items-center gap-3">
+              {voiceStatus === 'recording' && (
+                <>
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-bold text-brand-accent">Grabando... {recordingDuration}s</span>
+                </>
+              )}
+              {voiceStatus === 'uploading' && (
+                <>
+                  <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-bold text-brand-accent">Subiendo audio...</span>
+                </>
+              )}
+              {voiceStatus === 'transcribing' && (
+                <>
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-bold text-brand-accent">Transcribiendo...</span>
+                </>
+              )}
+              {voiceStatus === 'processing' && (
+                <>
+                  <div className="w-3 h-3 bg-purple-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-bold text-brand-accent">Procesando con IA...</span>
+                </>
+              )}
+              {voiceStatus === 'searching' && (
+                <>
+                  <Volume2 className="w-4 h-4 text-brand-accent animate-pulse" />
+                  <span className="text-sm font-bold text-brand-accent">Buscando clienta...</span>
+                </>
+              )}
+            </div>
+            {transcript && (
+              <p className="mt-2 text-xs text-slate-500 italic">"¿{transcript}?"</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex-1 overflow-y-auto space-y-4 pb-24 no-scrollbar">
         <AnimatePresence>

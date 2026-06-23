@@ -10,7 +10,7 @@ import { AppointmentType, Service, Appointment, PaymentMethod } from '../types';
 import { ExtractedAppointmentData } from '../services/groqService';
 import { toPng } from 'html-to-image';
 import { Invoice } from './Invoice';
-import { VoiceScheduler } from './VoiceScheduler';
+import { VoiceAssistant } from './VoiceAssistant';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -1381,11 +1381,14 @@ export const Agenda: React.FC = () => {
         )}
       </div>
 
-      {/* Voice Scheduler Modal */}
+      {/* Voice Assistant Modal */}
       {showVoiceScheduler && (
-        <VoiceScheduler
+        <VoiceAssistant
           onClose={() => setShowVoiceScheduler(false)}
-          onExtracted={handleVoiceExtracted}
+          appointments={appointments}
+          clients={filteredClients}
+          businessId={activeBusinessId}
+          onScheduleExtracted={handleVoiceExtracted}
         />
       )}
     </div>
