@@ -276,17 +276,28 @@ export function useVoiceAgendaSearch(
             const { targetDate, specificDate } = extractionResult.data;
             const appointmentsFound = queryAppointments(targetDate, specificDate);
             const dateLabel = getTargetDateLabel(targetDate, specificDate);
+            const count = appointmentsFound.length;
 
             updateState({
-              status: appointmentsFound.length === 0 ? 'no_appointments' : 'success',
+              status: count === 0 ? 'no_appointments' : 'success',
               extractedData: extractionResult.data,
               appointments: appointmentsFound,
-              totalCount: appointmentsFound.length,
+              totalCount: count,
               targetDateLabel: dateLabel,
               error: null,
             });
 
-            await speakAgenda();
+            if (count === 0) {
+              await ttsService.speak(`No tienes citas programadas para ${dateLabel}`, 0.9);
+            } else {
+              let message = `Tienes ${count} ${count === 1 ? 'cita' : 'citas'} para ${dateLabel}`;
+              const appointmentList = appointmentsFound.map(app => {
+                const hour12 = format(new Date(`2000-01-01T${app.hora}`), 'h:mm a');
+                return `a las ${hour12} ${app.clientName}`;
+              });
+              message += `: ${appointmentList.join(', ')}`;
+              await ttsService.speak(message, 0.9);
+            }
           } else {
             updateState({
               status: 'error',
