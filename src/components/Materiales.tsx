@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Plus, Trash2, Edit2, Package, Image as ImageIcon, X, Search, Filter, Tag, AlertTriangle, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Edit2, Package, Image as ImageIcon, X, Search, Filter, Tag, AlertTriangle, ChevronUp, ChevronDown, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Material, UnitType, Category } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { VoiceInventorySearch } from './VoiceInventorySearch';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -12,12 +13,14 @@ function cn(...inputs: ClassValue[]) {
 
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
+import { VoiceInventoryModal } from './VoiceInventoryModal';
 
 export const Materiales: React.FC = () => {
   const { materials, categories, activeBusinessId, addMaterial, updateMaterial, deleteMaterial, addCategory, deleteCategory, updateMaterialStock } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [showCategoryDeleteConfirm, setShowCategoryDeleteConfirm] = useState(false);
+  const [showVoiceSearch, setShowVoiceSearch] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -177,6 +180,13 @@ export const Materiales: React.FC = () => {
       <header className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-brand-accent flex items-center gap-2">Materiales</h1>
         <div className="flex gap-2">
+          <button 
+            onClick={() => setShowVoiceSearch(true)}
+            className="p-2 bg-brand-accent text-white rounded-xl shadow-lg active:scale-95 transition-transform"
+            title="Buscar material por voz"
+          >
+            <Mic className="w-5 h-5" />
+          </button>
           <button 
             onClick={() => setIsCategoryModalOpen(true)}
             className="p-2 bg-brand-pink text-brand-accent rounded-xl shadow-sm border border-brand-pink-medium"
@@ -601,6 +611,10 @@ export const Materiales: React.FC = () => {
             </button>
           </motion.div>
         </div>
+      )}
+
+      {showVoiceSearch && (
+        <VoiceInventoryModal onClose={() => setShowVoiceSearch(false)} />
       )}
     </div>
   );

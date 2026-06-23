@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic, Calendar, FileText, X, ChevronRight } from 'lucide-react';
+import { Mic, Calendar, FileText, X, ChevronRight, Package } from 'lucide-react';
 import { useVoiceAppointment, VoiceAppointmentStatus } from '../hooks/useVoiceAppointment';
 import { useVoiceAgendaSearch } from '../hooks/useVoiceAgendaSearch';
+import { useVoiceInventorySearch } from '../hooks/useVoiceInventorySearch';
+import { VoiceInventorySearch } from './VoiceInventorySearch';
 import { ExtractedAppointmentData } from '../services/groqService';
-import { Appointment, Client } from '../types';
+import { Appointment, Client, Material } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -12,7 +14,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type AssistantMode = 'select' | 'schedule' | 'search';
+type AssistantMode = 'select' | 'schedule' | 'search' | 'inventory';
 
 interface VoiceAssistantProps {
   onClose: () => void;
@@ -54,7 +56,20 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
     speakAgenda,
   } = useVoiceAgendaSearch(appointments, clients, businessId);
 
-  const handleModeSelect = (selectedMode: 'schedule' | 'search') => {
+  const {
+    status: inventoryStatus,
+    error: inventoryError,
+    recordingDuration: inventoryRecordingDuration,
+    transcript: inventoryTranscript,
+    foundMaterial,
+    extractedData: inventoryExtractedData,
+    startRecording: startInventoryRecording,
+    stopRecording: stopInventoryRecording,
+    reset: resetInventory,
+    speakMessage: speakInventoryMessage,
+  } = useVoiceInventorySearch();
+
+  const handleModeSelect = (selectedMode: 'schedule' | 'search' | 'inventory') => {
     setMode(selectedMode);
   };
 
@@ -64,8 +79,10 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
     } else {
       if (mode === 'schedule') {
         resetSchedule();
-      } else {
+      } else if (mode === 'search') {
         resetSearch();
+      } else {
+        resetInventory();
       }
       setMode('select');
     }
@@ -86,6 +103,18 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
     resetSearch();
   };
 
+  const handleInventoryReset = () => {
+    resetInventory();
+  };
+
+  const handleInventorySpeakAgain = () => {
+    if (foundMaterial) {
+      speakInventoryMessage(`Quedan ${foundMaterial.unidades} unidades de ${foundMaterial.nombre}`);
+    } else if (inventoryExtractedData?.materialName) {
+      speakInventoryMessage(`El material ${inventoryExtractedData.materialName} no se encuentra en el inventario`);
+    }
+  };
+
   const isScheduleRecording = scheduleStatus === 'recording';
   const isScheduleProcessing = ['uploading', 'transcribing', 'processing'].includes(scheduleStatus);
   const isScheduleDone = scheduleStatus === 'success';
@@ -95,6 +124,11 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
   const isSearchProcessing = ['uploading', 'transcribing', 'processing'].includes(searchStatus);
   const isSearchDone = searchStatus === 'success' || searchStatus === 'no_appointments';
   const isSearchError = searchStatus === 'error';
+
+  const isInventoryRecording = inventoryStatus === 'recording';
+  const isInventoryProcessing = ['uploading', 'transcribing', 'processing'].includes(inventoryStatus);
+  const isInventoryDone = inventoryStatus === 'found' || inventoryStatus === 'not_found';
+  const isInventoryError = inventoryStatus === 'error';
 
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -159,6 +193,22 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
                   <div className="text-left">
                     <p className="font-black text-slate-700">Consultar Agenda</p>
                     <p className="text-[10px] text-slate-400">Ver citas de un día</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-brand-accent transition-colors" />
+              </button>
+
+              <button
+                onClick={() => handleModeSelect('inventory')}
+                className="w-full flex items-center justify-between p-4 bg-brand-pink-light rounded-2xl border-2 border-brand-pink/30 hover:border-brand-accent transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-black text-slate-700">Consultar Stock</p>
+                    <p className="text-[10px] text-slate-400">Buscar material por voz</p>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-brand-accent transition-colors" />
@@ -240,6 +290,47 @@ export const VoiceAssistant: React.FC<VoiceAssistantProps> = ({
                 onCancel={resetSearch}
                 onSpeakAgain={handleSearchSpeakAgain}
                 onNewSearch={handleSearchReset}
+                formatDuration={formatDuration}
+              />
+            </motion.div>
+          )}
+
+          {mode === 'inventory' && (
+            <motion.div
+              key="inventory"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <button
+                onClick={handleBack}
+                className="text-xs text-slate-400 font-medium mb-4 flex items-center gap-1"
+              >
+                ← Volver
+              </button>
+
+              <VoiceInventorySearch
+                status={inventoryStatus}
+                error={inventoryError}
+                transcript={inventoryTranscript}
+                recordingDuration={inventoryRecordingDuration}
+                foundMaterial={foundMaterial}
+                extractedMaterialName={inventoryExtractedData?.materialName || null}
+                isRecording={isInventoryRecording}
+                isProcessing={isInventoryProcessing}
+                isDone={isInventoryDone}
+                hasError={isInventoryError}
+                onMainAction={() => {
+                  if (inventoryStatus === 'idle' || isInventoryError) {
+                    resetInventory();
+                    startInventoryRecording();
+                  } else if (isInventoryRecording) {
+                    stopInventoryRecording();
+                  }
+                }}
+                onCancel={resetInventory}
+                onNewSearch={handleInventoryReset}
+                onSpeakAgain={handleInventorySpeakAgain}
                 formatDuration={formatDuration}
               />
             </motion.div>
