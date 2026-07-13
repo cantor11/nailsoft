@@ -72,3 +72,15 @@ models/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Credenciales de Google Cloud 
+secrets/
+*.json.key
+vision-credentials.json
+
+# Runtime config local de Firebase Functions
+functions/.runtimeconfig.json
+
+# Variables de entorno de Cloud Functions
+functions/.env
+functions/.env.local

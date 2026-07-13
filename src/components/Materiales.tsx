@@ -1,33 +1,42 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Plus, Trash2, Edit2, Package, Image as ImageIcon, X, Search, Filter, Tag, AlertTriangle, ChevronUp, ChevronDown, Mic } from 'lucide-react';
+import {
+  Plus, Trash2, Edit2, Package, Image as ImageIcon, X,
+  Search, Tag, AlertTriangle, ChevronUp, ChevronDown, Mic, Sparkles
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Material, UnitType, Category } from '../types';
+import { Material, Category } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { VoiceInventorySearch } from './VoiceInventorySearch';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
+import { VoiceInventoryModal } from './VoiceInventoryModal';
+import { ColorMatcher } from './ColorMatcher';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { Capacitor } from '@capacitor/core';
-import { VoiceInventoryModal } from './VoiceInventoryModal';
-
 export const Materiales: React.FC = () => {
-  const { materials, categories, activeBusinessId, addMaterial, updateMaterial, deleteMaterial, addCategory, deleteCategory, updateMaterialStock } = useStore();
+  const {
+    materials, categories, activeBusinessId,
+    addMaterial, updateMaterial, deleteMaterial,
+    addCategory, deleteCategory, updateMaterialStock
+  } = useStore();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [showCategoryDeleteConfirm, setShowCategoryDeleteConfirm] = useState(false);
   const [showVoiceSearch, setShowVoiceSearch] = useState(false);
+  const [isColorMatcherOpen, setIsColorMatcherOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [limit, setLimit] = useState(15);
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
   const [newCategoryName, setNewCategoryName] = useState('');
-  
+  const [warning, setWarning] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
@@ -37,9 +46,9 @@ export const Materiales: React.FC = () => {
     alertaStock: 2,
     tipoAlerta: 'unidades' as 'unidades' | 'servicios',
     categoriaId: '',
-    imagen: ''
+    imagen: '',
+    color: ''
   });
-  const [warning, setWarning] = useState<string | null>(null);
 
   const takePhoto = async () => {
     if (Capacitor.isNativePlatform()) {
@@ -48,16 +57,13 @@ export const Materiales: React.FC = () => {
           quality: 90,
           allowEditing: true,
           resultType: CameraResultType.DataUrl,
-          source: CameraSource.Prompt // Muestra opciones de Cámara o Galería
+          source: CameraSource.Prompt
         });
-        if (image.dataUrl) {
-          setForm({ ...form, imagen: image.dataUrl });
-        }
+        if (image.dataUrl) setForm({ ...form, imagen: image.dataUrl });
       } catch (error) {
         console.error('Error taking photo:', error);
       }
     } else {
-      // Fallback para web
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
@@ -83,17 +89,15 @@ export const Materiales: React.FC = () => {
   });
 
   const filteredMaterials = allFilteredMaterials.slice(0, limit);
-
   const filteredCategories = categories.filter(c => c.businessId === activeBusinessId);
 
   const handleSave = () => {
     if (!form.nombre || !form.descripcion) return;
-    
-    // Check for duplicates
-    const isDuplicate = materials.some(m => 
-      m.businessId === activeBusinessId && 
+
+    const isDuplicate = materials.some(m =>
+      m.businessId === activeBusinessId &&
       !m.deleted &&
-      m.nombre.toLowerCase().trim() === form.nombre.toLowerCase().trim() && 
+      m.nombre.toLowerCase().trim() === form.nombre.toLowerCase().trim() &&
       m.id !== editingId
     );
 
@@ -108,28 +112,22 @@ export const Materiales: React.FC = () => {
     } else {
       addMaterial(form);
     }
-    
+
     resetForm();
   };
 
   const resetForm = () => {
-    setForm({ 
-      nombre: '', 
-      descripcion: '', 
-      precio: 0, 
-      cantidadServicios: 1, 
-      unidades: 1, 
-      alertaStock: 2, 
-      tipoAlerta: 'unidades', 
-      categoriaId: '', 
-      imagen: '' 
+    setForm({
+      nombre: '', descripcion: '', precio: 0, cantidadServicios: 1,
+      unidades: 1, alertaStock: 2, tipoAlerta: 'unidades',
+      categoriaId: '', imagen: '', color: ''
     });
     setEditingId(null);
     setIsModalOpen(false);
   };
 
   const startEdit = (m: Material) => {
-    setForm({ 
+    setForm({
       nombre: m.nombre,
       descripcion: m.descripcion,
       precio: m.precio,
@@ -138,7 +136,8 @@ export const Materiales: React.FC = () => {
       alertaStock: m.alertaStock || 0,
       tipoAlerta: m.tipoAlerta || 'unidades',
       categoriaId: m.categoriaId || '',
-      imagen: m.imagen || ''
+      imagen: m.imagen || '',
+      color: m.color || ''
     });
     setEditingId(m.id);
     setIsModalOpen(true);
@@ -147,19 +146,14 @@ export const Materiales: React.FC = () => {
   const handleAddCategory = () => {
     const trimmedName = newCategoryName.trim();
     if (!trimmedName) return;
-    
-    try {
-      const success = addCategory(trimmedName);
-      if (!success) {
-        setWarning(`La categoría "${trimmedName}" ya existe.`);
-        setTimeout(() => setWarning(null), 5000);
-        return;
-      }
-      setNewCategoryName('');
-      setWarning(null);
-    } catch (error) {
-      console.error('Error adding category:', error);
+    const success = addCategory(trimmedName);
+    if (!success) {
+      setWarning(`La categoría "${trimmedName}" ya existe.`);
+      setTimeout(() => setWarning(null), 5000);
+      return;
     }
+    setNewCategoryName('');
+    setWarning(null);
   };
 
   const confirmDeleteCategory = (cat: Category) => {
@@ -177,23 +171,36 @@ export const Materiales: React.FC = () => {
 
   return (
     <div className="p-6 h-full flex flex-col max-w-md mx-auto bg-brand-pink-light">
+
+      {/* ── Header ── */}
       <header className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-brand-accent flex items-center gap-2">Materiales</h1>
+        <h1 className="text-2xl font-bold text-brand-accent">Materiales</h1>
         <div className="flex gap-2">
-          <button 
+          {/* Botón Color Matcher */}
+          <button
+            onClick={() => setIsColorMatcherOpen(true)}
+            className="p-2 bg-brand-accent text-white rounded-xl shadow-lg active:scale-95 transition-transform"
+            title="Buscar esmaltes por color de diseño"
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
+          {/* Botón Voz */}
+          <button
             onClick={() => setShowVoiceSearch(true)}
             className="p-2 bg-brand-accent text-white rounded-xl shadow-lg active:scale-95 transition-transform"
             title="Buscar material por voz"
           >
             <Mic className="w-5 h-5" />
           </button>
-          <button 
+          {/* Botón Categorías */}
+          <button
             onClick={() => setIsCategoryModalOpen(true)}
             className="p-2 bg-brand-pink text-brand-accent rounded-xl shadow-sm border border-brand-pink-medium"
           >
             <Tag className="w-5 h-5" />
           </button>
-          <button 
+          {/* Botón Agregar */}
+          <button
             onClick={() => setIsModalOpen(true)}
             className="p-2 bg-brand-accent text-white rounded-xl shadow-lg"
           >
@@ -202,28 +209,22 @@ export const Materiales: React.FC = () => {
         </div>
       </header>
 
-      {/* Buscador y Filtro */}
+      {/* ── Buscador y filtros ── */}
       <div className="space-y-4 mb-6">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
+          <input
             type="text"
             placeholder="Buscar producto..."
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setLimit(15);
-            }}
+            onChange={(e) => { setSearchQuery(e.target.value); setLimit(15); }}
             className="w-full bg-white border-none rounded-2xl py-3 pl-10 pr-4 text-sm shadow-sm focus:ring-2 ring-brand-accent outline-none"
           />
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
           <button
-            onClick={() => {
-              setSelectedCategory('all');
-              setLimit(15);
-            }}
+            onClick={() => { setSelectedCategory('all'); setLimit(15); }}
             className={cn(
               "px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap transition-all",
               selectedCategory === 'all' ? "bg-brand-accent text-white" : "bg-white text-slate-400 border border-brand-pink"
@@ -234,10 +235,7 @@ export const Materiales: React.FC = () => {
           {filteredCategories.map(cat => (
             <button
               key={cat.id}
-              onClick={() => {
-                setSelectedCategory(cat.id);
-                setLimit(15);
-              }}
+              onClick={() => { setSelectedCategory(cat.id); setLimit(15); }}
               className={cn(
                 "px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap transition-all",
                 selectedCategory === cat.id ? "bg-brand-accent text-white" : "bg-white text-slate-400 border border-brand-pink"
@@ -249,6 +247,7 @@ export const Materiales: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Lista de materiales ── */}
       <div className="flex-1 overflow-y-auto space-y-4 pb-24 no-scrollbar">
         {filteredMaterials.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -259,9 +258,8 @@ export const Materiales: React.FC = () => {
           filteredMaterials.map((m) => {
             const category = filteredCategories.find(c => c.id === m.categoriaId);
             const totalServiciosDisponibles = (m.unidades * m.cantidadServicios) - (m.serviciosConsumidosAcumulados || 0);
-            
-            const isLowStock = m.tipoAlerta === 'unidades' 
-              ? m.unidades <= m.alertaStock 
+            const isLowStock = m.tipoAlerta === 'unidades'
+              ? m.unidades <= m.alertaStock
               : totalServiciosDisponibles <= m.alertaStock;
 
             return (
@@ -270,9 +268,13 @@ export const Materiales: React.FC = () => {
                 isLowStock ? "border-rose-500 shadow-lg shadow-rose-200/50" : "border-brand-pink/50"
               )}>
                 <div className="flex gap-4">
+                  {/* Imagen / icono */}
                   <div className="relative">
                     <div className="w-16 h-16 bg-brand-pink-light rounded-2xl flex items-center justify-center text-brand-accent overflow-hidden">
-                      {m.imagen ? <img src={m.imagen} className="w-full h-full object-cover" /> : <Package className="w-8 h-8 opacity-40" />}
+                      {m.imagen
+                        ? <img src={m.imagen} className="w-full h-full object-cover" />
+                        : <Package className="w-8 h-8 opacity-40" />
+                      }
                     </div>
                     {isLowStock && (
                       <div className="absolute -top-2 -right-2 bg-rose-500 text-white p-1 rounded-full shadow-lg animate-bounce">
@@ -280,10 +282,21 @@ export const Materiales: React.FC = () => {
                       </div>
                     )}
                   </div>
+
                   <div className="flex-1">
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="font-bold text-slate-800">{m.nombre}</h3>
+                        {/* Nombre + círculo de color */}
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-slate-800">{m.nombre}</h3>
+                          {m.color && (
+                            <div
+                              className="w-4 h-4 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                              style={{ backgroundColor: m.color }}
+                              title={m.color}
+                            />
+                          )}
+                        </div>
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           {category && (
                             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">
@@ -305,19 +318,25 @@ export const Materiales: React.FC = () => {
                         ${m.precio.toLocaleString()}
                       </span>
                     </div>
+
                     <p className="text-[10px] text-slate-400 line-clamp-1 my-2">{m.descripcion}</p>
-                    
+
                     <div className="flex justify-between items-center">
                       <div className="flex gap-1">
-                        <button onClick={() => startEdit(m)} className="p-2 text-slate-300 hover:text-brand-accent transition-colors"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => deleteMaterial(m.id)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => startEdit(m)} className="p-2 text-slate-300 hover:text-brand-accent transition-colors">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => deleteMaterial(m.id)} className="p-2 text-slate-300 hover:text-rose-500 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      
+
+                      {/* Control de stock */}
                       <div className="flex items-center gap-2 bg-brand-pink-light rounded-xl px-2 py-1">
-                        <button 
+                        <button
                           onClick={() => {
                             if (m.unidades === 1 && (m.serviciosConsumidosAcumulados || 0) > 0) {
-                              if (confirm('Aún quedan servicios por consumir de esta unidad. ¿Deseas dejar el stock en 0 y reiniciar los servicios consumidos?')) {
+                              if (confirm('Aún quedan servicios por consumir. ¿Deseas dejar el stock en 0?')) {
                                 updateMaterialStock(m.id, -1);
                               }
                             } else {
@@ -329,7 +348,7 @@ export const Materiales: React.FC = () => {
                           <ChevronDown className="w-4 h-4" />
                         </button>
                         <span className="text-xs font-black text-brand-accent min-w-[20px] text-center">{m.unidades}</span>
-                        <button 
+                        <button
                           onClick={() => updateMaterialStock(m.id, 1)}
                           className="p-1 text-brand-accent active:scale-90 transition-transform"
                         >
@@ -346,7 +365,7 @@ export const Materiales: React.FC = () => {
 
         {allFilteredMaterials.length > limit && (
           <div className="pt-2 pb-8">
-            <button 
+            <button
               onClick={() => setLimit(prev => prev + 10)}
               className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-brand-accent bg-brand-pink border-2 border-brand-pink-medium shadow-sm active:scale-95 transition-all"
             >
@@ -356,25 +375,23 @@ export const Materiales: React.FC = () => {
         )}
       </div>
 
-      {/* Modal Categorías */}
+      {/* ── Modal Categorías ── */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl"
           >
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-bold text-brand-accent">Categorías</h2>
-              <button onClick={() => {
-                setIsCategoryModalOpen(false);
-                setWarning(null);
-              }}><X className="w-5 h-5 text-slate-400" /></button>
+              <button onClick={() => { setIsCategoryModalOpen(false); setWarning(null); }}>
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
             </div>
 
             {warning && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
+              <motion.div
+                initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
                 className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2"
               >
                 <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
@@ -383,20 +400,14 @@ export const Materiales: React.FC = () => {
             )}
 
             <div className="flex gap-2 mb-4">
-              <input 
+              <input
                 placeholder="Nueva categoría..."
                 className="flex-1 bg-brand-pink-light rounded-2xl px-4 py-3 text-sm outline-none border border-brand-pink/20 focus:border-brand-accent transition-colors"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddCategory();
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } }}
               />
-              <button 
-                type="button"
+              <button
                 onClick={handleAddCategory}
                 className="p-3 bg-brand-accent text-white rounded-2xl shadow-md active:scale-95 transition-all"
               >
@@ -425,11 +436,11 @@ export const Materiales: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Confirmación Eliminar Categoría */}
+      {/* ── Confirmar eliminar categoría ── */}
       <AnimatePresence>
         {showCategoryDeleteConfirm && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6 text-center">
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -440,24 +451,14 @@ export const Materiales: React.FC = () => {
               </div>
               <h2 className="text-xl font-bold text-slate-800 mb-2">¿Eliminar Categoría?</h2>
               <p className="text-xs text-slate-400 mb-8 leading-relaxed">
-                ¿Deseas eliminar <span className="font-bold text-slate-600">"{categoryToDelete?.nombre}"</span>? 
-                <br /><br />
-                Los materiales asociados pasarán automáticamente a <span className="font-bold text-brand-accent">"Sin categoría"</span>.
+                ¿Deseas eliminar <span className="font-bold text-slate-600">"{categoryToDelete?.nombre}"</span>?
+                Los materiales asociados pasarán a <span className="font-bold text-brand-accent">"Sin categoría"</span>.
               </p>
               <div className="space-y-3">
-                <button 
-                  onClick={handleDeleteCategory}
-                  className="w-full py-4 rounded-2xl font-bold text-white bg-red-500 shadow-lg active:scale-95 transition-transform"
-                >
+                <button onClick={handleDeleteCategory} className="w-full py-4 rounded-2xl font-bold text-white bg-red-500 shadow-lg active:scale-95 transition-transform">
                   Sí, eliminar
                 </button>
-                <button 
-                  onClick={() => {
-                    setShowCategoryDeleteConfirm(false);
-                    setCategoryToDelete(null);
-                  }}
-                  className="w-full py-4 rounded-2xl font-bold text-slate-400 bg-slate-50 active:scale-95 transition-transform"
-                >
+                <button onClick={() => { setShowCategoryDeleteConfirm(false); setCategoryToDelete(null); }} className="w-full py-4 rounded-2xl font-bold text-slate-400 bg-slate-50 active:scale-95 transition-transform">
                   Cancelar
                 </button>
               </div>
@@ -466,21 +467,22 @@ export const Materiales: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {/* ── Modal crear/editar material ── */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-end justify-center">
-          <motion.div 
-            initial={{ y: "100%" }} animate={{ y: 0 }}
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }}
             className="bg-white w-full max-w-md rounded-t-[40px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
           >
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-brand-accent">{editingId ? 'Editar Producto' : 'Nuevo Producto'}</h2>
               <button onClick={resetForm}><X className="w-6 h-6 text-slate-400" /></button>
             </div>
-            
+
             <div className="space-y-4 mb-8">
               <AnimatePresence>
                 {warning && (
-                  <motion.div 
+                  <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
@@ -492,7 +494,8 @@ export const Materiales: React.FC = () => {
                 )}
               </AnimatePresence>
 
-              <button 
+              {/* Imagen */}
+              <button
                 onClick={takePhoto}
                 className="w-full h-32 bg-brand-pink-light rounded-2xl border-2 border-dashed border-brand-pink flex flex-col items-center justify-center text-brand-accent/40 overflow-hidden relative"
               >
@@ -510,100 +513,140 @@ export const Materiales: React.FC = () => {
                   </>
                 )}
               </button>
-              
-              <input 
-                placeholder="Nombre del producto *" 
+
+              {/* Selector de color */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">
+                  Color del Esmalte
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="color"
+                    value={form.color || '#ffffff'}
+                    onChange={(e) => setForm({ ...form, color: e.target.value })}
+                    className="w-14 h-14 rounded-2xl border-2 border-brand-pink cursor-pointer bg-transparent p-1"
+                  />
+                  <div className="flex-1">
+                    {form.color ? (
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded-xl border-2 border-brand-pink/50 shadow-sm"
+                          style={{ backgroundColor: form.color }}
+                        />
+                        <div>
+                          <p className="text-xs font-black text-slate-700 uppercase">{form.color}</p>
+                          <p className="text-[10px] text-slate-400">Color seleccionado</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                        Selecciona el color del esmalte para compararlo con diseños
+                      </p>
+                    )}
+                  </div>
+                  {form.color && (
+                    <button onClick={() => setForm({ ...form, color: '' })} className="p-2 bg-slate-100 rounded-xl text-slate-400">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Nombre */}
+              <input
+                placeholder="Nombre del producto *"
                 className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm"
                 value={form.nombre}
-                onChange={(e) => setForm({...form, nombre: e.target.value})}
-              />
-              <textarea 
-                placeholder="Descripción *" 
-                className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm h-24 resize-none"
-                value={form.descripcion}
-                onChange={(e) => setForm({...form, descripcion: e.target.value})}
+                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               />
 
+              {/* Descripción */}
+              <textarea
+                placeholder="Descripción *"
+                className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm h-24 resize-none"
+                value={form.descripcion}
+                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              />
+
+              {/* Categoría */}
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Categoría</label>
-                <select 
+                <select
                   className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm"
                   value={form.categoriaId}
-                  onChange={(e) => setForm({...form, categoriaId: e.target.value})}
+                  onChange={(e) => setForm({ ...form, categoriaId: e.target.value })}
                 >
                   <option value="">Sin categoría</option>
                   {filteredCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.nombre}</option>)}
                 </select>
               </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* Precio y rendimiento */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Precio Individual</label>
-                  <input 
-                    type="number"
-                    min="0"
+                  <input
+                    type="number" min="0"
                     onWheel={(e) => e.currentTarget.blur()}
                     placeholder="Precio*"
                     className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm"
                     value={form.precio === 0 ? '' : form.precio}
                     onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
-                    onChange={(e) => setForm({...form, precio: Math.max(0, Number(e.target.value))})}
+                    onChange={(e) => setForm({ ...form, precio: Math.max(0, Number(e.target.value)) })}
                   />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Rendimiento por Unidad</label>
-                  <input 
-                    type="number"
-                    min="0"
+                  <input
+                    type="number" min="0"
                     onWheel={(e) => e.currentTarget.blur()}
                     placeholder="Rendimiento*"
                     className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm"
                     value={form.cantidadServicios === 0 ? '' : form.cantidadServicios}
                     onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
-                    onChange={(e) => setForm({...form, cantidadServicios: Math.max(0, Number(e.target.value))})}
+                    onChange={(e) => setForm({ ...form, cantidadServicios: Math.max(0, Number(e.target.value)) })}
                   />
                 </div>
               </div>
- 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {/* Stock y alerta */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Unidades en Stock</label>
-                  <input 
-                    type="number"
-                    min="0"
+                  <input
+                    type="number" min="0"
                     onWheel={(e) => e.currentTarget.blur()}
                     placeholder="Unidades*"
                     className="w-full bg-brand-pink-light rounded-2xl p-4 text-sm"
                     value={form.unidades === 0 ? '' : form.unidades}
                     onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
-                    onChange={(e) => setForm({...form, unidades: Math.max(0, Number(e.target.value))})}
+                    onChange={(e) => setForm({ ...form, unidades: Math.max(0, Number(e.target.value)) })}
                   />
                 </div>
-                <div className="flex flex-col w-full overflow-hidden">
+                <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Alerta de Stock</label>
-                  <div className="flex flex-row items-stretch gap-2 w-full">
-                    <input 
-                      type="number"
-                      min="0"
+                  <div className="flex gap-2">
+                    <input
+                      type="number" min="0"
                       onWheel={(e) => e.currentTarget.blur()}
                       placeholder="Umbral*"
-                      className="flex-[3] min-w-0 bg-brand-pink-light rounded-2xl p-4 text-sm"
+                      className="flex-1 bg-brand-pink-light rounded-2xl p-4 text-sm"
                       value={form.alertaStock === 0 ? '' : form.alertaStock}
                       onKeyDown={(e) => { if (e.key === '-' || e.key === 'e') e.preventDefault(); }}
-                      onChange={(e) => setForm({...form, alertaStock: Math.max(0, Number(e.target.value))})}
+                      onChange={(e) => setForm({ ...form, alertaStock: Math.max(0, Number(e.target.value)) })}
                     />
-                    <button 
-                      onClick={() => setForm({...form, tipoAlerta: form.tipoAlerta === 'unidades' ? 'servicios' : 'unidades'})}
-                      className="flex-[2] sm:flex-[1] px-2 bg-brand-pink text-brand-accent rounded-2xl text-[10px] font-black uppercase whitespace-nowrap overflow-hidden text-ellipsis flex items-center justify-center min-w-[60px] active:scale-95 transition-transform"
+                    <button
+                      onClick={() => setForm({ ...form, tipoAlerta: form.tipoAlerta === 'unidades' ? 'servicios' : 'unidades' })}
+                      className="px-3 bg-brand-pink text-brand-accent rounded-2xl text-[8px] font-black uppercase"
                     >
-                      {form.tipoAlerta === 'unidades' ? 'UND' : 'SERV'}
+                      {form.tipoAlerta === 'unidades' ? 'Und.' : 'Usos'}
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <button 
+            <button
               onClick={handleSave}
               className="w-full py-4 rounded-2xl font-bold text-white bg-brand-accent shadow-lg"
             >
@@ -613,6 +656,17 @@ export const Materiales: React.FC = () => {
         </div>
       )}
 
+      {/* ── Color Matcher Modal ── */}
+      <AnimatePresence>
+        {isColorMatcherOpen && (
+          <ColorMatcher
+            materials={allFilteredMaterials}
+            onClose={() => setIsColorMatcherOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Voice Search Modal ── */}
       {showVoiceSearch && (
         <VoiceInventoryModal onClose={() => setShowVoiceSearch(false)} />
       )}

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Plus, Calendar, Clock, MapPin, User, CheckCircle2, Circle, ChevronLeft, ChevronRight, Trash2, Edit, FileText, X, RotateCcw, Search, Mic } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, User, CheckCircle2, Circle, ChevronLeft, ChevronRight, Trash2, Edit, FileText, X, RotateCcw, Search, Mic, Sparkles } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
@@ -11,6 +11,7 @@ import { ExtractedAppointmentData } from '../services/groqService';
 import { toPng } from 'html-to-image';
 import { Invoice } from './Invoice';
 import { VoiceAssistant } from './VoiceAssistant';
+import { ColorMatcher } from './ColorMatcher';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -31,10 +32,12 @@ export const Agenda: React.FC = () => {
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [captureApp, setCaptureApp] = useState<Appointment | null>(null);
   const [showVoiceScheduler, setShowVoiceScheduler] = useState(false);
+  const [isColorMatcherOpen, setIsColorMatcherOpen] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
   
   const { 
     appointments, clients, services, workers, activeBusinessId, businesses,
+    materials, 
     toggleAppointmentStatus, addAppointment, updateAppointment, deleteAppointment, undoDelete 
   } = useStore();
 
@@ -92,16 +95,13 @@ export const Agenda: React.FC = () => {
       const dateB = new Date(`${b.fecha}T${b.hora}`);
       
       if (filter === 'pending') {
-        // Pendientes: más prontas a lejanas
         return dateA.getTime() - dateB.getTime();
       } else {
-        // Finalizadas: más recientes a antiguas
         return dateB.getTime() - dateA.getTime();
       }
     });
 
   const filteredAppointments = allFilteredAppointments.slice(0, limit);
-
   const totalDailyRevenue = dailyAppointments.reduce((sum, app) => sum + app.precioFinal, 0);
 
   const handlePrevWeek = () => setCurrentWeekStart(subWeeks(currentWeekStart, 1));
@@ -122,7 +122,6 @@ export const Agenda: React.FC = () => {
   const handleDownloadInvoice = async (app: Appointment) => {
     setCaptureApp(app);
     
-    // Esperar a que el DOM se actualice con la nueva cita para capturar
     setTimeout(async () => {
       const element = document.getElementById('invoice-capture');
       if (!element) {
@@ -134,7 +133,7 @@ export const Agenda: React.FC = () => {
         const dataUrl = await toPng(element, { 
           quality: 1, 
           backgroundColor: '#fff',
-          pixelRatio: 3 // Mayor calidad para evitar borrosidad
+          pixelRatio: 3
         });
         
         if (Capacitor.isNativePlatform()) {
@@ -188,6 +187,7 @@ export const Agenda: React.FC = () => {
     const m = (rawM === '' || rawM === undefined || rawM === null || rawM < 1) ? 1 : rawM;
     return sum + s.precio * m;
   }, 0);
+
   const currentTotalServices = selectedServices.reduce((sum, s) => {
     const rawM = newApp.serviciosMultiplicadores?.[s.id];
     const m = (rawM === '' || rawM === undefined || rawM === null || rawM < 1) ? 1 : rawM;
@@ -229,7 +229,6 @@ export const Agenda: React.FC = () => {
   const handleAddAppointment = () => {
     if (!newApp.clientId || newApp.serviciosIds.length === 0) return;
     
-    // Sanitize multipliers
     const sanitizedMultipliers: Record<string, number> = {};
     for (const [k, v] of Object.entries(newApp.serviciosMultiplicadores)) {
       sanitizedMultipliers[k] = (v === '' || v === undefined || v === null || Number(v) < 1) ? 1 : Number(v);
@@ -351,9 +350,23 @@ export const Agenda: React.FC = () => {
             Agenda
           </h1>
           <div className="flex gap-2">
-            <button onClick={handlePrevWeek} className="p-2 bg-brand-pink rounded-xl text-brand-accent"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={handleToday} className="px-3 py-1 bg-brand-pink rounded-xl text-brand-accent text-[10px] font-bold">HOY</button>
-            <button onClick={handleNextWeek} className="p-2 bg-brand-pink rounded-xl text-brand-accent"><ChevronRight className="w-4 h-4" /></button>
+            <button onClick={handlePrevWeek} className="p-2 bg-brand-pink rounded-xl text-brand-accent">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button onClick={handleToday} className="px-3 py-1 bg-brand-pink rounded-xl text-brand-accent text-[10px] font-bold">
+              HOY
+            </button>
+            <button onClick={handleNextWeek} className="p-2 bg-brand-pink rounded-xl text-brand-accent">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            {/* ── Botón Color Matcher ── */}
+            <button
+              onClick={() => setIsColorMatcherOpen(true)}
+              className="p-2 bg-brand-accent text-white rounded-xl shadow-lg active:scale-95 transition-transform"
+              title="Buscar esmaltes por color de diseño"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
           </div>
         </div>
         
@@ -591,8 +604,6 @@ export const Agenda: React.FC = () => {
         <Mic className="w-7 h-7" />
       </button>
 
-      {/* Undo Toast removed - handled globally */}
-
       {/* Modal de Pago */}
       {isPaymentModalOpen && paymentApp && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-6">
@@ -811,9 +822,15 @@ export const Agenda: React.FC = () => {
                   <span className="text-sm font-black text-brand-accent uppercase">{detailsApp.metodoPago}</span>
                 </div>
                 <div className="space-y-2 text-xs font-bold text-slate-500">
-                  {detailsApp.abonoEfectivo !== undefined && detailsApp.abonoEfectivo > 0 && <div className="flex justify-between"><span>Efectivo:</span><span>${detailsApp.abonoEfectivo.toLocaleString()}</span></div>}
-                  {detailsApp.abonoTransferencia !== undefined && detailsApp.abonoTransferencia > 0 && <div className="flex justify-between"><span>Transferencia:</span><span>${detailsApp.abonoTransferencia.toLocaleString()}</span></div>}
-                  {detailsApp.devuelta !== undefined && <div className="flex justify-between text-emerald-500"><span>Devuelta:</span><span>${detailsApp.devuelta.toLocaleString()}</span></div>}
+                  {detailsApp.abonoEfectivo !== undefined && detailsApp.abonoEfectivo > 0 && (
+                    <div className="flex justify-between"><span>Efectivo:</span><span>${detailsApp.abonoEfectivo.toLocaleString()}</span></div>
+                  )}
+                  {detailsApp.abonoTransferencia !== undefined && detailsApp.abonoTransferencia > 0 && (
+                    <div className="flex justify-between"><span>Transferencia:</span><span>${detailsApp.abonoTransferencia.toLocaleString()}</span></div>
+                  )}
+                  {detailsApp.devuelta !== undefined && (
+                    <div className="flex justify-between text-emerald-500"><span>Devuelta:</span><span>${detailsApp.devuelta.toLocaleString()}</span></div>
+                  )}
                 </div>
                 <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Pagado</span>
@@ -831,6 +848,8 @@ export const Agenda: React.FC = () => {
           </motion.div>
         </div>
       )}
+
+      {/* Modal Nueva Cita */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-end justify-center">
           <motion.div 
@@ -939,11 +958,7 @@ export const Agenda: React.FC = () => {
                           extra = { direccion: client.direccion };
                         }
                       }
-                      setNewApp({
-                        ...newApp,
-                        tipo,
-                        ...extra
-                      });
+                      setNewApp({ ...newApp, tipo, ...extra });
                     }}
                     className="w-full bg-brand-pink-light border-none rounded-2xl p-4 text-sm"
                   >
@@ -1112,6 +1127,7 @@ export const Agenda: React.FC = () => {
           </motion.div>
         </div>
       )}
+
       {/* Modal para Editar Cita */}
       {isEditModalOpen && editingApp && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end justify-center">
@@ -1366,6 +1382,7 @@ export const Agenda: React.FC = () => {
           </motion.div>
         </div>
       )}
+
       {/* Hidden Invoice for capture */}
       <div className="fixed -left-[2000px] top-0 pointer-events-none opacity-0">
         {captureApp && activeBusiness && (
@@ -1380,6 +1397,16 @@ export const Agenda: React.FC = () => {
           />
         )}
       </div>
+
+      {/* ── Color Matcher Modal ── */}
+      <AnimatePresence>
+        {isColorMatcherOpen && (
+          <ColorMatcher
+            materials={materials.filter(m => m.businessId === activeBusinessId && !m.deleted)}
+            onClose={() => setIsColorMatcherOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Voice Assistant Modal */}
       {showVoiceScheduler && (
