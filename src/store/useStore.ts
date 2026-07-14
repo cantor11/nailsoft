@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { ColorAnalysisRecord } from '../types';
+import { syncColorAnalysis } from '../services/syncService';
 import {
   Appointment, Client, Service, Material,
   Reminder, FinanceRecord, PaymentMethod, Worker, BusinessInfo, Category, ExtraRecord
 } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { NotificationService } from '../services/notificationService';
 import {
   syncAppointment,
   syncClient,
@@ -35,6 +36,9 @@ interface AppState {
   finances: FinanceRecord[];
   extraRecords: ExtraRecord[];
   workers: Worker[];
+  colorAnalysisRecords: ColorAnalysisRecord[];
+  addColorAnalysisRecord: (record: Omit<ColorAnalysisRecord, 'id' | 'businessId'>) => void;
+  deleteColorAnalysisRecord: (id: string) => void;
 
   lastDeleted: { type: string; data: any; index: number } | null;
 
@@ -128,6 +132,7 @@ const defaultState = {
   finances: [],
   extraRecords: [],
   workers: [],
+  colorAnalysisRecords: [],
   lastDeleted: null
 };
 
@@ -716,6 +721,31 @@ export const useStore = create<AppState>()(
         }
       },
 
+      addColorAnalysisRecord: (recordData) => {
+        const state = get();
+        const newRecord: ColorAnalysisRecord = {
+          ...recordData,
+          id: uuidv4(),
+          businessId: state.activeBusinessId
+        };
+        set((s) => ({
+          colorAnalysisRecords: [...s.colorAnalysisRecords, newRecord]
+        }));
+        if (state.userId) {
+          syncColorAnalysis.save(state.userId, newRecord).catch(console.error);
+        }
+      },
+
+      deleteColorAnalysisRecord: (id) => {
+        const state = get();
+        set((s) => ({
+          colorAnalysisRecords: s.colorAnalysisRecords.filter(r => r.id !== id)
+        }));
+        if (state.userId) {
+          syncColorAnalysis.delete(state.userId, id).catch(console.error);
+        }
+      },
+
       // ─────────────────────────────────────────────
       // CATEGORÍAS
       // ─────────────────────────────────────────────
@@ -1059,6 +1089,7 @@ export const useStore = create<AppState>()(
           finances: state.finances,
           extraRecords: state.extraRecords,
           workers: state.workers.map(({ foto, ...rest }: any) => rest),
+          colorAnalysisRecords: state.colorAnalysisRecords,
         };
         return JSON.stringify(dataToExport, null, 2);
       },
@@ -1080,6 +1111,7 @@ export const useStore = create<AppState>()(
             finances: importedData.finances || [],
             extraRecords: importedData.extraRecords || [],
             workers: importedData.workers || [],
+            colorAnalysisRecords: importedData.colorAnalysisRecords || [],
             lastDeleted: null
           });
           return true;
@@ -1105,7 +1137,8 @@ export const useStore = create<AppState>()(
         finances: state.finances,
         extraRecords: state.extraRecords,
         workers: state.workers,
+        colorAnalysisRecords: state.colorAnalysisRecords,
       })
     }
   )
-);
+); 

@@ -231,3 +231,12 @@ export const syncExtraRecord = {
   delete: (userId: string, id: string) =>
     deleteDocument(userId, COLLECTIONS.EXTRA_RECORDS, id)
 };
+
+// — Historial de análisis de color —
+export const syncColorAnalysis = {
+  save: (userId: string, record: any) =>
+    setDocument(userId, 'colorAnalysisRecords', record.id, record),
+
+  delete: (userId: string, id: string) =>
+    deleteDocument(userId, 'colorAnalysisRecords', id)
+};

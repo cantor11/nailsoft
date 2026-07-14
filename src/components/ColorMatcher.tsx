@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Sparkles, X, RefreshCw, AlertCircle, Image as ImageIcon, Loader2, Package } from 'lucide-react';
+// 🚀 CAMBIO: Se agregó "History" al final de los imports de lucide-react
+import { Upload, Sparkles, X, RefreshCw, AlertCircle, Image as ImageIcon, Loader2, Package, History } from 'lucide-react';
 import { useColorMatcher } from '../hooks/useColorMatcher';
 import { Material } from '../types';
 import { clsx, type ClassValue } from 'clsx';
@@ -10,12 +11,14 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// 🚀 CAMBIO: Se agregó "onOpenHistory" a la interfaz de Props
 interface ColorMatcherProps {
   materials: Material[];
   onClose: () => void;
+  onOpenHistory: () => void;
 }
 
-export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose }) => {
+export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, onOpenHistory }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     imagePreview,
@@ -75,12 +78,23 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose }
               Sube un diseño y encuentra tus esmaltes
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 bg-slate-100 rounded-full text-slate-400 active:scale-90 transition-transform"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* 🚀 CAMBIO: Botones del historial y cerrar agrupados en un flex div */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onOpenHistory}
+              className="p-2 bg-brand-pink-light rounded-xl text-brand-accent active:scale-90 transition-transform"
+              title="Ver historial"
+            >
+              <History className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 bg-slate-100 rounded-full text-slate-400 active:scale-90 transition-transform"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Contenido scrolleable */}
@@ -149,12 +163,12 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose }
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Analizando colores...
-                </>
+                </                >
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
                   Analizar Diseño
-                </>
+                </                >
               )}
             </button>
           )}

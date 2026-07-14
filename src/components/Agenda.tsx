@@ -12,6 +12,7 @@ import { toPng } from 'html-to-image';
 import { Invoice } from './Invoice';
 import { VoiceAssistant } from './VoiceAssistant';
 import { ColorMatcher } from './ColorMatcher';
+import { ColorAnalysisHistory } from './ColorAnalysisHistory';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -34,6 +35,8 @@ export const Agenda: React.FC = () => {
   const [showVoiceScheduler, setShowVoiceScheduler] = useState(false);
   const [isColorMatcherOpen, setIsColorMatcherOpen] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const invoiceCaptureRef = useRef<HTMLDivElement>(null);
   
   const { 
     appointments, clients, services, workers, activeBusinessId, businesses,
@@ -1404,7 +1407,15 @@ export const Agenda: React.FC = () => {
           <ColorMatcher
             materials={materials.filter(m => m.businessId === activeBusinessId && !m.deleted)}
             onClose={() => setIsColorMatcherOpen(false)}
+            onOpenHistory={() => {
+              setIsColorMatcherOpen(false);
+              setIsHistoryOpen(true);
+            }}
           />
+        )}
+
+        {isHistoryOpen && (
+          <ColorAnalysisHistory onClose={() => setIsHistoryOpen(false)} />
         )}
       </AnimatePresence>
 

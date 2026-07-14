@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { analyzeImage, matchColorsWithMaterials, DetectedColor, ColorMatchResult } from '../services/visionService';
 import { Material } from '../types';
+import { useStore } from '../store/useStore';
+import { format } from 'date-fns';
 
 interface UseColorMatcherState {
   // La imagen que subió el usuario en base64
@@ -146,6 +148,21 @@ export const useColorMatcher = (): UseColorMatcherReturn => {
         hasResults: true,
         error: null
       }));
+
+      // 🚀 CAMBIO AQUÍ: Guardado automático en el store cuando hay resultados exitosos
+      const { addColorAnalysisRecord } = useStore.getState();
+      if (matchedMaterials.length > 0) {
+        addColorAnalysisRecord({
+          fecha: format(new Date(), 'yyyy-MM-dd'),
+          hora: format(new Date(), 'HH:mm'),
+          suggestedMaterials: matchedMaterials.map(m => ({
+            materialId: m.materialId,
+            materialName: m.materialName,
+            materialColor: m.materialColor,
+            similarity: m.similarity
+          }))
+        });
+      }
 
     } catch (error: any) {
       setState(prev => ({
