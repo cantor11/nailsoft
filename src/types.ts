@@ -18,6 +18,7 @@ export interface Material {
   nombre: string;
   descripcion: string;
   imagen?: string;
+  color?: string;
   precio: number;
   cantidadServicios: number; // Cuántos "usos" o "servicios" rinde el producto completo
   unidades: number; // Cantidad de envases/unidades físicas
