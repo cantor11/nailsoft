@@ -38,101 +38,80 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
 };
 
 // ─────────────────────────────────────────────
-// Detecta si un color RGB es tono de piel humana
-// Los tonos de piel tienen: R alto, G medio, B bajo
-// y una saturación relativamente baja
+// Convierte RGB a HSL
+// Retorna h(0-360), s(0-1), l(0-1)
 // ─────────────────────────────────────────────
-const isSkinTone = (r: number, g: number, b: number): boolean => {
-  // Condición 1: R debe ser el canal dominante
-  if (r <= g || r <= b) return false;
-
-  // Condición 2: rango típico de tonos de piel en RGB
-  if (r < 60 || r > 255) return false;
-  if (g < 30 || g > 220) return false;
-  if (b < 15 || b > 190) return false;
-
-  // Condición 3: diferencia entre R y B debe ser significativa
-  if (r - b < 15) return false;
-
-  // Condición 4: convertir a HSV y verificar saturación y matiz
-  const max = Math.max(r, g, b) / 255;
-  const min = Math.min(r, g, b) / 255;
+const rgbToHsl = (r: number, g: number, b: number) => {
+  const rN = r / 255, gN = g / 255, bN = b / 255;
+  const max = Math.max(rN, gN, bN);
+  const min = Math.min(rN, gN, bN);
   const delta = max - min;
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
 
-  // Saturación baja a media (piel no es muy saturada)
-  const saturation = max === 0 ? 0 : delta / max;
-  if (saturation > 0.6) return false;
-
-  // Matiz en rango naranja-rosado (0-50 grados)
-  let hue = 0;
   if (delta > 0) {
-    if (max === r / 255) {
-      hue = 60 * (((g / 255 - b / 255) / delta) % 6);
-    } else if (max === g / 255) {
-      hue = 60 * ((b / 255 - r / 255) / delta + 2);
-    } else {
-      hue = 60 * ((r / 255 - g / 255) / delta + 4);
-    }
-    if (hue < 0) hue += 360;
+    s = delta / (1 - Math.abs(2 * l - 1));
+    if (max === rN) h = ((gN - bN) / delta) % 6;
+    else if (max === gN) h = (bN - rN) / delta + 2;
+    else h = (rN - gN) / delta + 4;
+    h = h * 60;
+    if (h < 0) h += 360;
   }
 
-  // Tonos de piel tienen matiz entre 0 y 50 grados
-  return hue >= 0 && hue <= 50;
+  return { h, s, l };
 };
 
 // ─────────────────────────────────────────────
-// Detecta si un color es muy claro (blanco/gris claro)
-// que típicamente es el fondo de la foto
+// Determina si un color debe ser descartado
+// Filtra: piel, fondos, sombras, negros, grises
 // ─────────────────────────────────────────────
-const isBackgroundColor = (r: number, g: number, b: number): boolean => {
+const shouldDiscard = (r: number, g: number, b: number): boolean => {
+  const { h, s, l } = rgbToHsl(r, g, b);
   const brightness = (r + g + b) / 3;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
 
-  // Muy claro y poco saturado = fondo blanco/gris
-  if (brightness > 200 && delta < 30) return true;
+  // 1. Descartar colores muy oscuros (sombras, fondos oscuros, bordes de uñas)
+  // Esto incluye negros reales Y sombras entre dedos
+  if (brightness < 45) return true;
 
-  // Muy oscuro y poco saturado = sombra oscura/negro puro
-  if (brightness < 20 && delta < 20) return true;
+  // 2. Descartar colores muy claros sin saturación (fondos blancos/grises claros)
+  if (l > 0.85 && s < 0.15) return true;
+
+  // 3. Descartar grises de cualquier tono (poca saturación)
+  // Los esmaltes siempre tienen saturación notable excepto el blanco/negro puro
+  if (s < 0.12 && l > 0.15 && l < 0.85) return true;
+
+  // 4. Descartar tonos de piel
+  // Piel: matiz naranja-amarillo (0-40°), saturación baja-media, luminosidad media
+  if (h >= 0 && h <= 40 && s >= 0.1 && s <= 0.65 && l >= 0.35 && l <= 0.75) return true;
+
+  // 5. Descartar tonos muy beige/café que son piel oscura o fondos cálidos
+  if (h >= 20 && h <= 50 && s <= 0.5 && l >= 0.25 && l <= 0.65) return true;
 
   return false;
 };
 
 // ─────────────────────────────────────────────
-// Similitud entre dos colores hex
-// Usa distancia euclidiana ponderada (el ojo humano
-// es más sensible al verde, luego rojo, luego azul)
+// Similitud perceptual entre dos colores hex
 // ─────────────────────────────────────────────
 const colorSimilarity = (hex1: string, hex2: string): number => {
   const c1 = hexToRgb(hex1);
   const c2 = hexToRgb(hex2);
   if (!c1 || !c2) return 0;
 
-  // Pesos perceptuales: verde > rojo > azul
-  const rWeight = 0.3;
-  const gWeight = 0.59;
-  const bWeight = 0.11;
-
-  const maxDistance = Math.sqrt(
-    rWeight * 255 ** 2 +
-    gWeight * 255 ** 2 +
-    bWeight * 255 ** 2
+  // Pesos perceptuales CIE
+  const rW = 0.3, gW = 0.59, bW = 0.11;
+  const maxDist = Math.sqrt(rW * 255 ** 2 + gW * 255 ** 2 + bW * 255 ** 2);
+  const dist = Math.sqrt(
+    rW * (c1.r - c2.r) ** 2 +
+    gW * (c1.g - c2.g) ** 2 +
+    bW * (c1.b - c2.b) ** 2
   );
 
-  const distance = Math.sqrt(
-    rWeight * (c1.r - c2.r) ** 2 +
-    gWeight * (c1.g - c2.g) ** 2 +
-    bWeight * (c1.b - c2.b) ** 2
-  );
-
-  return Math.round((1 - distance / maxDistance) * 100);
+  return Math.round((1 - dist / maxDist) * 100);
 };
 
 // ─────────────────────────────────────────────
 // Analiza imagen con Vision AI
-// Pide 10 colores, filtra piel y fondo,
-// devuelve los mejores colores de uñas
 // ─────────────────────────────────────────────
 export const analyzeImage = async (imageBase64: string): Promise<DetectedColor[]> => {
   if (!VISION_API_KEY) {
@@ -145,12 +124,7 @@ export const analyzeImage = async (imageBase64: string): Promise<DetectedColor[]
     requests: [
       {
         image: { content: cleanBase64 },
-        features: [
-          {
-            type: 'IMAGE_PROPERTIES',
-            maxResults: 10  // Pedimos 10, luego filtramos
-          }
-        ]
+        features: [{ type: 'IMAGE_PROPERTIES', maxResults: 20 }]
       }
     ]
   };
@@ -168,20 +142,24 @@ export const analyzeImage = async (imageBase64: string): Promise<DetectedColor[]
 
   const data = await response.json();
   const colors = data.responses?.[0]?.imagePropertiesAnnotation?.dominantColors?.colors;
-
   if (!colors || colors.length === 0) return [];
 
-  // Filtrar tonos de piel y fondos, quedarnos con colores de uñas
+  // Filtrar colores no deseados
   const nailColors = colors.filter((colorInfo: any) => {
     const r = colorInfo.color?.red || 0;
     const g = colorInfo.color?.green || 0;
     const b = colorInfo.color?.blue || 0;
-    return !isSkinTone(r, g, b) && !isBackgroundColor(r, g, b);
+    return !shouldDiscard(r, g, b);
   });
 
-  // Si después de filtrar no queda nada, usar todos los colores
-  // (caso extremo: uñas nude que son similares a la piel)
-  const colorsToProcess = nailColors.length > 0 ? nailColors : colors;
+  // Si el filtro eliminó todo, usamos los menos descartables
+  // (caso: uñas nude muy similares a piel)
+  const colorsToProcess = nailColors.length > 0
+    ? nailColors
+    : colors.filter((c: any) => {
+        const brightness = ((c.color?.red || 0) + (c.color?.green || 0) + (c.color?.blue || 0)) / 3;
+        return brightness > 40; // Al menos descartar negros absolutos
+      }).slice(0, 3);
 
   const totalScore = colorsToProcess.reduce(
     (sum: number, c: any) => sum + (c.score || 0), 0
@@ -193,7 +171,6 @@ export const analyzeImage = async (imageBase64: string): Promise<DetectedColor[]
       const g = colorInfo.color?.green || 0;
       const b = colorInfo.color?.blue || 0;
       const score = colorInfo.score || 0;
-
       return {
         hex: rgbToHex(r, g, b),
         rgb: { r: Math.round(r), g: Math.round(g), b: Math.round(b) },
@@ -204,22 +181,18 @@ export const analyzeImage = async (imageBase64: string): Promise<DetectedColor[]
           : 0
       };
     })
-    .sort((a: DetectedColor, b: DetectedColor) => b.score - a.score)
-    .slice(0, 5); // Top 5 colores de uñas
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
 };
 
 // ─────────────────────────────────────────────
-// Compara colores de uñas detectados con esmaltes
-// del inventario
+// Compara colores detectados con esmaltes
 // ─────────────────────────────────────────────
 export const matchColorsWithMaterials = (
   detectedColors: DetectedColor[],
   materials: Array<{ id: string; nombre: string; color?: string }>
 ): ColorMatchResult[] => {
-  const materialsWithColor = materials.filter(
-    m => m.color && m.color.trim() !== ''
-  );
-
+  const materialsWithColor = materials.filter(m => m.color && m.color.trim() !== '');
   if (materialsWithColor.length === 0 || detectedColors.length === 0) return [];
 
   const results: ColorMatchResult[] = [];
@@ -236,7 +209,6 @@ export const matchColorsWithMaterials = (
       }
     });
 
-    // Umbral de 75%: estricto pero permite coincidencias reales
     if (bestSimilarity >= 75) {
       results.push({
         materialId: material.id,
