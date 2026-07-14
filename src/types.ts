@@ -138,3 +138,18 @@ export interface FinanceRecord {
   serviciosIds?: string[];
   businessId: string;
 }
+
+// Agregar al final de types.ts
+export interface ColorAnalysisRecord {
+  id: string;
+  fecha: string;          // yyyy-MM-dd
+  hora: string;           // HH:mm
+  imagePreview?: string;  // miniatura de la imagen analizada (opcional)
+  suggestedMaterials: {
+    materialId: string;
+    materialName: string;
+    materialColor: string;
+    similarity: number;
+  }[];
+  businessId: string;
+}

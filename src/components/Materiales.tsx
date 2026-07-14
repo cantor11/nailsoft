@@ -12,6 +12,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { VoiceInventoryModal } from './VoiceInventoryModal';
 import { ColorMatcher } from './ColorMatcher';
+import { ColorAnalysisHistory } from './ColorAnalysisHistory';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -36,6 +37,7 @@ export const Materiales: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [warning, setWarning] = useState<string | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const [form, setForm] = useState({
     nombre: '',
@@ -662,7 +664,15 @@ export const Materiales: React.FC = () => {
           <ColorMatcher
             materials={allFilteredMaterials}
             onClose={() => setIsColorMatcherOpen(false)}
+            onOpenHistory={() => {
+              setIsColorMatcherOpen(false);
+              setIsHistoryOpen(true);
+            }}
           />
+        )}
+
+        {isHistoryOpen && (
+          <ColorAnalysisHistory onClose={() => setIsHistoryOpen(false)} />
         )}
       </AnimatePresence>
 
