@@ -1,9 +1,9 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react'; // 🚀 CAMBIO: Se agregó useState
 import { motion, AnimatePresence } from 'framer-motion';
-// 🚀 CAMBIO: Se agregó "History" al final de los imports de lucide-react
 import { Upload, Sparkles, X, RefreshCw, AlertCircle, Image as ImageIcon, Loader2, Package, History } from 'lucide-react';
 import { useColorMatcher } from '../hooks/useColorMatcher';
 import { Material } from '../types';
+import { ImageCropperModal } from './ImageCropperModal'; // 🚀 CAMBIO: Importamos el modal que creamos
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -11,7 +11,6 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// 🚀 CAMBIO: Se agregó "onOpenHistory" a la interfaz de Props
 interface ColorMatcherProps {
   materials: Material[];
   onClose: () => void;
@@ -27,25 +26,55 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
     isAnalyzing,
     error,
     hasResults,
-    handleImageUpload,
+    // 🚀 CAMBIO: Necesitaremos setCroppedImage (o la función que exponga tu hook para setear el base64 directo)
+    // Si tu hook useColorMatcher no la tiene, puedes pasarle el base64 a una variante o la añadimos aquí.
+    handleImageUpload, 
     analyzeCurrentImage,
     reset
   } = useColorMatcher();
 
+  // 🚀 CAMBIO: Nuevos estados locales para controlar el flujo de recorte interactivo
+  const [tempImageSrc, setTempImageSrc] = useState<string | null>(null);
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+
+  // 🚀 CAMBIO: Interceptamos la selección de archivos para abrir el cropper primero
+  const processFileForCropping = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setTempImageSrc(reader.result as string);
+      setIsCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) handleImageUpload(file);
+    if (file) processFileForCropping(file); // 🚀 CAMBIO
     e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
-    if (file) handleImageUpload(file);
+    if (file) processFileForCropping(file); // 🚀 CAMBIO
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+  };
+
+  // 🚀 CAMBIO: Función que se ejecuta cuando terminas de recortar la uña en el modal
+  const handleCropComplete = (croppedBase64: string) => {
+    setIsCropperOpen(false);
+    
+    // Convertimos el base64 recortado a un archivo File para que tu hook 'useColorMatcher' 
+    // lo reciba e inicialice su estado interno exactamente igual que antes.
+    fetch(croppedBase64)
+      .then(res => res.blob())
+      .then(blob => {
+        const croppedFile = new File([blob], "cropped_nail.jpg", { type: "image/jpeg" });
+        handleImageUpload(croppedFile);
+      });
   };
 
   // Etiqueta de similitud
@@ -79,7 +108,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
             </p>
           </div>
 
-          {/* 🚀 CAMBIO: Botones del historial y cerrar agrupados en un flex div */}
           <div className="flex items-center gap-2">
             <button
               onClick={onOpenHistory}
@@ -124,7 +152,7 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
               </div>
             </div>
           ) : (
-            /* Preview de la imagen */
+            /* Preview de la imagen recortada */
             <div className="relative rounded-[32px] overflow-hidden border-2 border-brand-pink">
               <img
                 src={imagePreview}
@@ -163,12 +191,12 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
                   Analizando colores...
-                </                >
+                </>
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
                   Analizar Diseño
-                </                >
+                </>
               )}
             </button>
           )}
@@ -206,7 +234,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                   </h3>
 
                   {matchedMaterials.length === 0 ? (
-                    /* Sin resultados */
                     <div className="bg-slate-50 rounded-[28px] p-8 text-center border-2 border-dashed border-slate-200">
                       <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                         <ImageIcon className="w-8 h-8 text-slate-300" />
@@ -219,7 +246,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                       </p>
                     </div>
                   ) : (
-                    /* Lista de esmaltes */
                     <div className="space-y-3">
                       {matchedMaterials.map((match, index) => {
                         const material = materials.find(m => m.id === match.materialId);
@@ -233,7 +259,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                             transition={{ delay: index * 0.06 }}
                             className="bg-white border-2 border-brand-pink/30 rounded-[24px] p-4 flex items-center gap-4 shadow-sm"
                           >
-                            {/* Imagen del esmalte o fallback */}
                             <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-brand-pink/20 flex-shrink-0 bg-brand-pink-light flex items-center justify-center">
                               {material?.imagen ? (
                                 <img
@@ -246,12 +271,10 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                               )}
                             </div>
 
-                            {/* Info */}
                             <div className="flex-1 min-w-0">
                               <p className="font-black text-slate-800 text-sm truncate">
                                 {match.materialName}
                               </p>
-                              {/* Ícono pequeño de color */}
                               <div className="flex items-center gap-1.5 mt-1">
                                 <div
                                   className="w-3.5 h-3.5 rounded-full border border-white shadow-sm flex-shrink-0"
@@ -261,7 +284,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                                   Color del esmalte
                                 </span>
                               </div>
-                              {/* Stock disponible */}
                               {material && (
                                 <p className="text-[10px] font-bold text-slate-300 mt-0.5 uppercase tracking-wider">
                                   Stock: {material.unidades} und.
@@ -269,7 +291,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                               )}
                             </div>
 
-                            {/* Badge de similitud */}
                             <div className={cn(
                               "px-3 py-2 rounded-xl text-center flex-shrink-0",
                               color
@@ -284,7 +305,6 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
                   )}
                 </div>
 
-                {/* Botón analizar otra imagen */}
                 <button
                   onClick={reset}
                   className="w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest text-brand-accent bg-brand-pink border-2 border-brand-pink-medium active:scale-95 transition-all flex items-center justify-center gap-2"
@@ -297,6 +317,17 @@ export const ColorMatcher: React.FC<ColorMatcherProps> = ({ materials, onClose, 
           </AnimatePresence>
         </div>
       </motion.div>
+
+      {/* 🚀 CAMBIO: Modal de Recorte Interactivo inyectado con AnimatePresence al final */}
+      <AnimatePresence>
+        {isCropperOpen && tempImageSrc && (
+          <ImageCropperModal
+            imageSrc={tempImageSrc}
+            onClose={() => setIsCropperOpen(false)}
+            onCropComplete={handleCropComplete}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

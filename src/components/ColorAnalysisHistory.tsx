@@ -97,30 +97,45 @@ export const ColorAnalysisHistory: React.FC<ColorAnalysisHistoryProps> = ({ onCl
                     className="p-4 flex items-center justify-between cursor-pointer active:bg-brand-pink-light transition-colors"
                     onClick={() => setExpandedId(isExpanded ? null : record.id)}
                   >
-                    <div>
-                      <p className="text-sm font-black text-slate-800">
-                        {format(parseISO(record.fecha), "d 'de' MMMM, yyyy", { locale: es })}
-                      </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                        {record.hora} • {record.suggestedMaterials.length} esmalte{record.suggestedMaterials.length !== 1 ? 's' : ''} sugerido{record.suggestedMaterials.length !== 1 ? 's' : ''}
-                      </p>
-                      {/* Miniaturas de colores */}
-                      <div className="flex gap-1.5 mt-2">
-                        {record.suggestedMaterials.slice(0, 5).map((m, i) => (
-                          <div
-                            key={i}
-                            className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
-                            style={{ backgroundColor: m.materialColor }}
-                            title={m.materialName}
+                    <div className="flex items-center gap-3 min-w-0"> {/* 🚀 Agregado contenedor flex para alinear la foto */}
+                      
+                      {/* 📸 FOTO DEL DISEÑO ORIGINAL */}
+                      {record.imagePreview && (
+                        <div className="w-12 h-12 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 border border-brand-pink/40 shadow-sm">
+                          <img 
+                            src={record.imagePreview} 
+                            alt="Diseño de uñas analizado" 
+                            className="w-full h-full object-cover"
                           />
-                        ))}
-                        {record.suggestedMaterials.length > 5 && (
-                          <span className="text-[10px] font-bold text-slate-400 self-center">
-                            +{record.suggestedMaterials.length - 5}
-                          </span>
-                        )}
+                        </div>
+                      )}
+
+                      <div className="min-w-0"> {/* Contenedor de textos existente */}
+                        <p className="text-sm font-black text-slate-800 truncate">
+                          {format(parseISO(record.fecha), "d 'de' MMMM, yyyy", { locale: es })}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                          {record.hora} • {record.suggestedMaterials.length} esmalte{record.suggestedMaterials.length !== 1 ? 's' : ''} sugerido{record.suggestedMaterials.length !== 1 ? 's' : ''}
+                        </p>
+                        {/* Miniaturas de colores de esmaltes */}
+                        <div className="flex gap-1.5 mt-2">
+                          {record.suggestedMaterials.slice(0, 5).map((m, i) => (
+                            <div
+                              key={i}
+                              className="w-4 h-4 rounded-full border-2 border-white shadow-sm"
+                              style={{ backgroundColor: m.materialColor }}
+                              title={m.materialName}
+                            />
+                          ))}
+                          {record.suggestedMaterials.length > 5 && (
+                            <span className="text-[10px] font-bold text-slate-400 self-center">
+                              +{record.suggestedMaterials.length - 5}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
+
                     <div className="flex items-center gap-2">
                       <button
                         onClick={(e) => {
@@ -148,6 +163,18 @@ export const ColorAnalysisHistory: React.FC<ColorAnalysisHistoryProps> = ({ onCl
                         className="overflow-hidden"
                       >
                         <div className="px-4 pb-4 space-y-2 border-t border-brand-pink/20 pt-3">
+  
+                          {/* 📸 VISTA AMPLIADA DEL DISEÑO AL EXPANDIR LA TARJETA */}
+                          {record.imagePreview && (
+                            <div className="w-full h-32 rounded-2xl overflow-hidden mb-3 border border-brand-pink/30 shadow-inner">
+                              <img 
+                                src={record.imagePreview} 
+                                alt="Diseño ampliado" 
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
                             Esmaltes sugeridos
                           </p>

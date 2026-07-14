@@ -149,12 +149,13 @@ export const useColorMatcher = (): UseColorMatcherReturn => {
         error: null
       }));
 
-      // 🚀 CAMBIO AQUÍ: Guardado automático en el store cuando hay resultados exitosos
+      // 🚀 GUARDADO AUTOMÁTICO ACTUALIZADO: Ahora guardamos también la foto en Base64
       const { addColorAnalysisRecord } = useStore.getState();
-      if (matchedMaterials.length > 0) {
+      if (matchedMaterials.length > 0 && state.imagePreview) {
         addColorAnalysisRecord({
           fecha: format(new Date(), 'yyyy-MM-dd'),
           hora: format(new Date(), 'HH:mm'),
+          imagePreview: state.imagePreview, // ← MANDAMOS LA FOTO AQUÍ
           suggestedMaterials: matchedMaterials.map(m => ({
             materialId: m.materialId,
             materialName: m.materialName,
